@@ -198,7 +198,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     return benchmark_update_table, job_name_options, job_status_options, job_table
 
 def run_dash_app(queue):
-    app.run_server(debug=True, use_reloader=False, host='0.0.0.0', port=8080)
+    app.run_server(debug=True, use_reloader=False, host='127.0.0.1', port=8080)
     queue.put("Dash app stopped")
 
 def run_dashboard():
@@ -213,7 +213,7 @@ def run_dashboard():
     driver = webdriver.Edge()
 
     # Open the Dash app in the browser
-    driver.get("http://0.0.0.0:8080/")
+    driver.get("http://127.0.0.1:8080/")
 
     return driver, dash_process, queue
 
