@@ -61,14 +61,14 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col([
             dbc.Table([
-                dbc.Thead(
-                    dbc.Tr([
-                        dbc.Th("Calendar"),
+                html.Thead(
+                    html.Tr([
+                        html.Th("Calendar"),
                     ])
                 ),
-                dbc.Tbody([
-                    dbc.Tr([
-                        dbc.Td([
+                html.Tbody([
+                    html.Tr([
+                        html.Td([
                             dcc.DatePickerSingle(
                                 id='date-picker-table',
                                 display_format='YYYY-MM-DD',
