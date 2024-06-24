@@ -36,21 +36,19 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=12)
-    ], className='border mb-3 align-items-center'),
-    dbc.Row([
+        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=8),
         dbc.Col([
             dbc.InputGroup([
-                dbc.InputGroupText("📅"),  # Emoji for the calendar
                 dcc.DatePickerSingle(
                     id='date-picker',
                     display_format='YYYY-MM-DD',
                     date=default_date,  # Default date
                     className='form-control'
-                )
-            ], className='mb-4 justify-content-center')
-        ], width=12)
-    ], className='border mb-3'),
+                ),
+                dbc.InputGroupText("📅")  # Emoji for the calendar
+            ], className='d-flex justify-content-end')
+        ], width=4)
+    ], className='border mb-3 align-items-center'),
     dbc.Row([
         dbc.Col([
             dbc.Card(
@@ -82,10 +80,7 @@ app.layout = dbc.Container([
     ], className='border mb-3'),
     dbc.Row([
         dbc.Col([
-            html.Div([
-                html.H4("Job Table", className='bg-primary text-white p-2 rounded'),  # Highlighted heading
-                html.Div(id='job-table', className='border')
-            ])
+            html.Div(id='job-table-container')
         ], width=12)
     ], className='border')
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
@@ -95,7 +90,7 @@ app.layout = dbc.Container([
     [Output('unlock-online-table', 'children'),
      Output('job-name-dropdown', 'options'),
      Output('status-dropdown', 'options'),
-     Output('job-table', 'children')],
+     Output('job-table-container', 'children')],
     [Input('date-picker', 'date'),
      Input('job-name-dropdown', 'value'),
      Input('status-dropdown', 'value')]
@@ -112,10 +107,10 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
     # Query the data
     query = f"""
-    SELECT JobName, StartTime, EndTime, JobStatus 
-    FROM Job_Stats
-    WHERE ProcessDate='{selected_date}' 
-    ORDER BY ProcessDate DESC
+    SELECT JobName, StartTime, EndTime, Status 
+    FROM Job_StatsVW
+    WHERE ProcessingDate='{selected_date}' 
+    ORDER BY StartTime DESC
     """
     df = pd.read_sql(query, conn)
 
@@ -133,18 +128,21 @@ def update_dashboard(selected_date, selected_job, selected_status):
     other_jobs_df = df[df['JobName'] != 'UnLock Online']
 
     # Create tables and dropdown options
-    unlock_online_table = dbc.Table.from_dataframe(unlock_online_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'JobStatus']], striped=True, bordered=True, hover=True, className='table-dark')
+    unlock_online_table = dbc.Table.from_dataframe(unlock_online_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], striped=True, bordered=True, hover=True, className='table-dark')
     
     job_name_options = [{'label': job, 'value': job} for job in other_jobs_df['JobName'].unique()]
-    job_status_options = [{'label': status, 'value': status} for status in other_jobs_df['JobStatus'].unique()]
+    job_status_options = [{'label': status, 'value': status} for status in other_jobs_df['Status'].unique()]
 
     filtered_df = other_jobs_df
     if selected_job:
         filtered_df = filtered_df[filtered_df['JobName'] == selected_job]
     if selected_status:
-        filtered_df = filtered_df[filtered_df['JobStatus'] == selected_status]
+        filtered_df = filtered_df[filtered_df['Status'] == selected_status]
 
-    job_table = dbc.Table.from_dataframe(filtered_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'JobStatus']], striped=True, bordered=True, hover=True)
+    job_table_header = [html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], className='bg-primary text-white'))]
+    job_table_body = [html.Tbody([html.Tr([html.Td(filtered_df.iloc[i][col]) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']]) for i in range(len(filtered_df))])]
+
+    job_table = dbc.Table(job_table_header + job_table_body, striped=True, bordered=True, hover=True)
 
     return unlock_online_table, job_name_options, job_status_options, job_table
 
