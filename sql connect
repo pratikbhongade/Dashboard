@@ -5,36 +5,6 @@ import dash_bootstrap_components as dbc
 from dash import dcc, html
 from dash.dependencies import Input, Output
 
-# Specify the database name you identified in SSMS
-database_name = 'ASPIRE'  # Replace with the actual database name
-
-# Connection string using Windows Authentication (Trusted_Connection)
-conn_str = (
-    r'DRIVER={SQL Server};'
-    r'SERVER=SDC01ASRSQTD01\TSQLINT0;'
-    r'DATABASE=' + database_name + r';'
-    r'Trusted_Connection=yes;'
-)
-
-# Connect to SQL Server
-conn = pyodbc.connect(conn_str)
-
-# Query the data
-query = """
-SELECT JobName, StartTime, EndTime, JobStatus 
-FROM Job_Stats
-WHERE ProcessDate='2024-06-21' 
-ORDER BY ProcessDate DESC
-"""
-df = pd.read_sql(query, conn)
-
-# Close the connection
-conn.close()
-
-# Separate the "Unlock Online" job
-unlock_online_df = df[df['JobName'] == 'Unlock Online']
-other_jobs_df = df[df['JobName'] != 'Unlock Online']
-
 # Initialize the Dash app with Bootstrap CSS
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -42,23 +12,36 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=12)
-    ]),
+    ], className='border mb-3'),
+    dbc.Row([
+        dbc.Col([
+            dbc.InputGroup([
+                dbc.InputGroupText(html.I(className="bi bi-calendar")),  # Bootstrap icon for the calendar
+                dcc.DatePickerSingle(
+                    id='date-picker',
+                    display_format='YYYY-MM-DD',
+                    date='2024-06-21',  # Default date
+                    className='form-control'
+                )
+            ], className='mb-4')
+        ], width=6)
+    ], className='border mb-3'),
     dbc.Row([
         dbc.Col([
             dbc.Card(
                 dbc.CardBody([
-                    html.H4("Unlock Online Job", className='card-title'),
-                    dbc.Table.from_dataframe(unlock_online_df, striped=True, bordered=True, hover=True, className='table-dark')
+                    html.H4("UnLock Online Job", className='card-title'),
+                    html.Div(id='unlock-online-table')
                 ]),
-                className='mb-4'
+                className='mb-4 border'
             )
         ], width=12)
-    ]),
+    ], className='border mb-3'),
     dbc.Row([
         dbc.Col([
             dcc.Dropdown(
                 id='job-name-dropdown',
-                options=[{'label': job, 'value': job} for job in other_jobs_df['JobName'].unique()],
+                options=[],
                 placeholder="Select a Job Name",
                 className='mb-4'
             )
@@ -66,33 +49,76 @@ app.layout = dbc.Container([
         dbc.Col([
             dcc.Dropdown(
                 id='status-dropdown',
-                options=[{'label': status, 'value': status} for status in other_jobs_df['JobStatus'].unique()],
+                options=[],
                 placeholder="Select Job Status",
                 className='mb-4'
             )
         ], width=6)
-    ]),
+    ], className='border mb-3'),
     dbc.Row([
         dbc.Col([
-            html.Div(id='job-table')
+            html.Div(id='job-table', className='border')
         ], width=12)
-    ])
+    ], className='border')
 ], fluid=True)
 
-# Callback to update the table based on dropdown selections
+# Callback to update the tables and dropdowns based on the selected date
 @app.callback(
-    Output('job-table', 'children'),
-    [Input('job-name-dropdown', 'value'),
+    [Output('unlock-online-table', 'children'),
+     Output('job-name-dropdown', 'options'),
+     Output('status-dropdown', 'options'),
+     Output('job-table', 'children')],
+    [Input('date-picker', 'date'),
+     Input('job-name-dropdown', 'value'),
      Input('status-dropdown', 'value')]
 )
-def update_table(selected_job, selected_status):
+def update_dashboard(selected_date, selected_job, selected_status):
+    # Connect to SQL Server
+    conn_str = (
+        r'DRIVER={SQL Server};'
+        r'SERVER=SDC01ASRSQTD01\TSQLINT0;'
+        r'DATABASE=ASPIRE;'
+        r'Trusted_Connection=yes;'
+    )
+    conn = pyodbc.connect(conn_str)
+
+    # Query the data
+    query = f"""
+    SELECT JobName, StartTime, EndTime, JobStatus 
+    FROM Job_Stats
+    WHERE ProcessDate='{selected_date}' 
+    ORDER BY ProcessDate DESC
+    """
+    df = pd.read_sql(query, conn)
+
+    # Close the connection
+    conn.close()
+
+    # Format datetime columns
+    df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
+    df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
+    df['EndDate'] = pd.to_datetime(df['EndTime']).dt.strftime('%Y-%m-%d')
+    df['EndTime'] = pd.to_datetime(df['EndTime']).dt.strftime('%I:%M:%S %p')
+
+    # Separate the "UnLock Online" job
+    unlock_online_df = df[df['JobName'] == 'UnLock Online']
+    other_jobs_df = df[df['JobName'] != 'UnLock Online']
+
+    # Create tables and dropdown options
+    unlock_online_table = dbc.Table.from_dataframe(unlock_online_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'JobStatus']], striped=True, bordered=True, hover=True, className='table-dark')
+    
+    job_name_options = [{'label': job, 'value': job} for job in other_jobs_df['JobName'].unique()]
+    job_status_options = [{'label': status, 'value': status} for status in other_jobs_df['JobStatus'].unique()]
+
     filtered_df = other_jobs_df
     if selected_job:
         filtered_df = filtered_df[filtered_df['JobName'] == selected_job]
     if selected_status:
         filtered_df = filtered_df[filtered_df['JobStatus'] == selected_status]
-    
-    return dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
+
+    job_table = dbc.Table.from_dataframe(filtered_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'JobStatus']], striped=True, bordered=True, hover=True)
+
+    return unlock_online_table, job_name_options, job_status_options, job_table
 
 if __name__ == '__main__':
     app.run_server(debug=True)
