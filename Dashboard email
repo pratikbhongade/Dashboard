@@ -261,10 +261,9 @@ def main():
     elif choice == '2':
         screenshot_path = capture_screenshot(driver)
         send_email_with_screenshot(screenshot_path)
-
-    # Close the browser and stop the Dash app
-    driver.quit()
-    dash_process.terminate()
+        # Close the browser and stop the Dash app
+        driver.quit()
+        dash_process.terminate()
 
 if __name__ == '__main__':
     main()
