@@ -60,6 +60,15 @@ app.layout = dbc.Container([
     ], className='border mb-3 align-items-center'),
     dbc.Row([
         dbc.Col([
+            dbc.Card(
+                dbc.CardBody([
+                    html.H4("Benchmark Update Job", className='card-title'),
+                    html.Div(id='benchmark-update-table')
+                ]),
+                className='mb-4 border'
+            )
+        ], width=9),
+        dbc.Col([
             dbc.Table([
                 html.Thead(
                     html.Tr([
@@ -82,17 +91,6 @@ app.layout = dbc.Container([
             ], className='table-bordered')
         ], width=3, className='d-flex justify-content-end mb-4')
     ]),
-    dbc.Row([
-        dbc.Col([
-            dbc.Card(
-                dbc.CardBody([
-                    html.H4("Benchmark Update Job", className='card-title'),
-                    html.Div(id='benchmark-update-table')
-                ]),
-                className='mb-4 border'
-            )
-        ], width=12)
-    ], className='border mb-3'),
     dbc.Row([
         dbc.Col([
             dcc.Dropdown(
@@ -124,7 +122,7 @@ app.layout = dbc.Container([
      Output('job-name-dropdown', 'options'),
      Output('status-dropdown', 'options'),
      Output('job-table-container', 'children')],
-    [Input('date-picker', 'date'),
+    [Input('date-picker-table', 'date'),
      Input('job-name-dropdown', 'value'),
      Input('status-dropdown', 'value')]
 )
@@ -161,26 +159,6 @@ def update_dashboard(selected_date, selected_job, selected_status):
         JSH.Status, 
         JSH.Message 
     FROM JobStreamTaskHistory JSH
-    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
-    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE 
-        CASE 
-            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
-            ELSE CONVERT(varchar, JSH.StartTime, 23) 
-        END = '{selected_date}'
-    UNION
-    SELECT 
-        CASE 
-            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
-            ELSE CONVERT(varchar, JSH.StartTime, 23) 
-        END as ProcessingDate, 
-        JSJ.JobStreamJoboid as Joboid, 
-        JSJ.Name as JobName, 
-        CONVERT(datetime, (JSH.StartTime)) AS [StartTime], 
-        CONVERT(datetime, (JSH.EndTime)) AS [EndTime], 
-        JSH.Status, 
-        JSH.Message 
-    FROM JobStreamTaskHistory JSH 
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
     WHERE 
