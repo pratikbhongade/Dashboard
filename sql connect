@@ -56,6 +56,19 @@ app.layout = dbc.Container([
     ], className='border mb-3 align-items-center'),
     dbc.Row([
         dbc.Col([
+            html.Div(
+                dcc.DatePickerSingle(
+                    id='date-picker',
+                    display_format='YYYY-MM-DD',
+                    date=default_date,  # Default date
+                    className='form-control'
+                ),
+                className='d-flex justify-content-end'
+            )
+        ], width=12, className='d-flex justify-content-end mb-4')
+    ]),
+    dbc.Row([
+        dbc.Col([
             dbc.Card(
                 dbc.CardBody([
                     html.H4("Benchmark Update Job", className='card-title'),
