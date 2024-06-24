@@ -1,9 +1,9 @@
 import pyodbc
 import pandas as pd
 import dash
+import dash_bootstrap_components as dbc
 from dash import dcc, html
 from dash.dependencies import Input, Output
-import plotly.express as px
 
 # Specify the database name you identified in SSMS
 database_name = 'ASPIRE'  # Replace with the actual database name
@@ -20,34 +20,63 @@ conn_str = (
 conn = pyodbc.connect(conn_str)
 
 # Query the data
-query = "SELECT TOP 20 * FROM AchBank"  # Replace with your actual query and table name
+query = """
+SELECT JobName, StartTime, EndTime, Status 
+FROM AchBank 
+ORDER BY StartTime DESC
+"""  # Replace with your actual query and table name
 df = pd.read_sql(query, conn)
 
 # Close the connection
 conn.close()
 
-# Initialize the Dash app
-app = dash.Dash(__name__)
+# Initialize the Dash app with Bootstrap CSS
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 # Layout of the dashboard
-app.layout = html.Div([
-    html.H1("SQL Server Data Dashboard"),
-    dcc.Dropdown(
-        id='dropdown',
-        options=[{'label': col, 'value': col} for col in df.columns],
-        value=df.columns[0]  # Default value
-    ),
-    dcc.Graph(id='bar-graph')
-])
+app.layout = dbc.Container([
+    dbc.Row([
+        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=12)
+    ]),
+    dbc.Row([
+        dbc.Col([
+            dcc.Dropdown(
+                id='job-name-dropdown',
+                options=[{'label': job, 'value': job} for job in df['JobName'].unique()],
+                placeholder="Select a Job Name",
+                className='mb-4'
+            )
+        ], width=6),
+        dbc.Col([
+            dcc.Dropdown(
+                id='status-dropdown',
+                options=[{'label': status, 'value': status} for status in df['Status'].unique()],
+                placeholder="Select Job Status",
+                className='mb-4'
+            )
+        ], width=6)
+    ]),
+    dbc.Row([
+        dbc.Col([
+            html.Div(id='job-table')
+        ], width=12)
+    ])
+], fluid=True)
 
-# Callback to update the bar chart based on dropdown selection
+# Callback to update the table based on dropdown selections
 @app.callback(
-    Output('bar-graph', 'figure'),
-    [Input('dropdown', 'value')]
+    Output('job-table', 'children'),
+    [Input('job-name-dropdown', 'value'),
+     Input('status-dropdown', 'value')]
 )
-def update_graph(selected_column):
-    fig = px.bar(df, x=selected_column, y=df.columns[1])  # Customize as needed
-    return fig
+def update_table(selected_job, selected_status):
+    filtered_df = df
+    if selected_job:
+        filtered_df = filtered_df[filtered_df['JobName'] == selected_job]
+    if selected_status:
+        filtered_df = filtered_df[filtered_df['Status'] == selected_status]
+    
+    return dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
 
 if __name__ == '__main__':
     app.run_server(debug=True)
