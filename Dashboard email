@@ -49,7 +49,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=9),
+        dbc.Col(html.H1("Aspire Job Status Dashboard", className='text-center mb-4'), width=9),
         dbc.Col([
             dbc.Table([
                 html.Thead(
@@ -132,7 +132,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     conn_str = (
         r'DRIVER={SQL Server};'
         r'SERVER=SDC01ASRSQTD01\TSQLINT0;'
-        r'DATABASE=AspireDB;'
+        r'DATABASE=ASPIRE;'
         r'Trusted_Connection=yes;'
     )
     conn = pyodbc.connect(conn_str)
@@ -158,7 +158,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
             ELSE CONVERT(varchar, JSH.StartTime, 23) 
         END = '{selected_date}'
-    ORDER BY StartTime DESC
+    ORDER BY StartTime ASC
     """
     df = pd.read_sql(query, conn)
 
@@ -195,8 +195,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
     return benchmark_update_table, job_name_options, job_status_options, job_table
 
-if __name__ == '__main__':
-    # Run the Dash app
+def run_dashboard():
     from multiprocessing import Process
 
     def run_dash_app():
@@ -214,6 +213,9 @@ if __name__ == '__main__':
     # Open the Dash app in the browser
     driver.get("http://127.0.0.1:8050/")
 
+    return driver, dash_process
+
+def capture_screenshot(driver):
     # Give some time to load the dashboard
     time.sleep(5)
 
@@ -222,19 +224,48 @@ if __name__ == '__main__':
     os.makedirs(os.path.dirname(screenshot_path), exist_ok=True)
     driver.save_screenshot(screenshot_path)
 
-    # Close the browser
-    driver.quit()
+    return screenshot_path
 
-    # Stop the Dash app
-    dash_process.terminate()
-
-    # Send an email with the screenshot
+def send_email_with_screenshot(screenshot_path):
+    # Send an email with the screenshot embedded
     outlook = win32.Dispatch('outlook.application')
     mail = outlook.CreateItem(0)
-    mail.To = 'recipient@example.com'
+    mail.To = 'Pratik_Bhongade@Keybank.com'
     mail.Subject = 'Aspire Dashboard'
-    mail.HTMLBody = '<h2>See the attached Dashboard Image</h2>'
-    mail.Attachments.Add(screenshot_path)
+    
+    with open(screenshot_path, 'rb') as f:
+        image_data = f.read()
+        image_cid = 'dashboard_image'
+    
+    mail.HTMLBody = f'''
+    <h2>See the Dashboard Image below:</h2>
+    <img src="cid:{image_cid}" width="800">
+    '''
+
+    attachment = mail.Attachments.Add(screenshot_path)
+    attachment.PropertyAccessor.SetProperty("http://schemas.microsoft.com/mapi/proptag/0x3712001F", image_cid)
+
     mail.Send()
 
-    print("Email sent with the dashboard image.")
+    print("Email sent with the dashboard image embedded.")
+
+def main():
+    print("Choose an option:")
+    print("1. Just view Dashboard and don't send email")
+    print("2. View Dashboard and send email")
+    choice = input("Enter 1 or 2: ")
+
+    driver, dash_process = run_dashboard()
+
+    if choice == '1':
+        print("Dashboard is running. Press Ctrl+C to stop.")
+    elif choice == '2':
+        screenshot_path = capture_screenshot(driver)
+        send_email_with_screenshot(screenshot_path)
+
+    # Close the browser and stop the Dash app
+    driver.quit()
+    dash_process.terminate()
+
+if __name__ == '__main__':
+    main()
