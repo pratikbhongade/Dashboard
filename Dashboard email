@@ -10,7 +10,6 @@ from selenium import webdriver
 import time
 import win32com.client as win32
 from multiprocessing import Process, Queue
-from PIL import Image
 
 # List of bank holidays
 bank_holidays = [
@@ -198,7 +197,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     return benchmark_update_table, job_name_options, job_status_options, job_table
 
 def run_dash_app(queue):
-    app.run_server(debug=True, use_reloader=False, host='127.0.0.1', port=8080)
+    app.run_server(debug=True, use_reloader=False)
     queue.put("Dash app stopped")
 
 def run_dashboard():
@@ -213,17 +212,18 @@ def run_dashboard():
     driver = webdriver.Edge()
 
     # Open the Dash app in the browser
-    driver.get("http://127.0.0.1:8080/")
+    driver.get("http://127.0.0.1:8050/")
 
     return driver, dash_process, queue
 
 def capture_full_page_screenshot(driver, file_path):
-    # Get the dimensions of the page
-    total_height = driver.execute_script("return document.body.scrollHeight")
+    # Set the window size to a large enough value to ensure the entire page is visible
     total_width = driver.execute_script("return document.body.scrollWidth")
-
-    # Set the window size to the dimensions of the page
+    total_height = driver.execute_script("return document.body.scrollHeight")
     driver.set_window_size(total_width, total_height)
+
+    # Give some time for the browser to render the changes
+    time.sleep(2)
 
     # Capture the screenshot
     driver.save_screenshot(file_path)
