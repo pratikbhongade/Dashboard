@@ -208,24 +208,24 @@ def run_dashboard():
     # Give the server some time to start
     time.sleep(5)
 
-    # Set up Selenium WebDriver (ensure you have a compatible WebDriver, e.g., ChromeDriver, in PATH)
-    driver = webdriver.Chrome()
+    # Set up Selenium WebDriver (ensure you have a compatible WebDriver, e.g., EdgeDriver, in PATH)
+    driver = webdriver.Edge()
 
     # Open the Dash app in the browser
     driver.get("http://127.0.0.1:8050/")
 
     return driver, dash_process, queue
 
-def capture_screenshot(driver):
-    # Give some time to load the dashboard
-    time.sleep(5)
+def capture_full_page_screenshot(driver, file_path):
+    # Get the dimensions of the page
+    total_height = driver.execute_script("return document.body.scrollHeight")
+    total_width = driver.execute_script("return document.body.scrollWidth")
 
-    # Capture the screenshot and save it
-    screenshot_path = r"C:\Aspire_Dashboard\dashboard.png"
-    os.makedirs(os.path.dirname(screenshot_path), exist_ok=True)
-    driver.save_screenshot(screenshot_path)
+    # Set the window size to the dimensions of the page
+    driver.set_window_size(total_width, total_height)
 
-    return screenshot_path
+    # Capture the screenshot
+    driver.save_screenshot(file_path)
 
 def send_email_with_screenshot(screenshot_path):
     # Send an email with the screenshot embedded
@@ -270,8 +270,14 @@ def main():
         except KeyboardInterrupt:
             pass
     elif choice == '2':
-        screenshot_path = capture_screenshot(driver)
+        # Capture the full page screenshot
+        screenshot_path = r"C:\Aspire_Dashboard\dashboard.png"
+        os.makedirs(os.path.dirname(screenshot_path), exist_ok=True)
+        capture_full_page_screenshot(driver, screenshot_path)
+
+        # Send the email with the screenshot
         send_email_with_screenshot(screenshot_path)
+
         # Close the browser and stop the Dash app
         driver.quit()
         dash_process.terminate()
