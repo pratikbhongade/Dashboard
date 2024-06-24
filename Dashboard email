@@ -9,6 +9,7 @@ import os
 from selenium import webdriver
 import time
 import win32com.client as win32
+from PIL import Image
 from multiprocessing import Process, Queue
 
 # List of bank holidays
@@ -217,16 +218,32 @@ def run_dashboard():
     return driver, dash_process, queue
 
 def capture_full_page_screenshot(driver, file_path):
-    # Set the window size to a large enough value to ensure the entire page is visible
-    total_width = driver.execute_script("return document.body.scrollWidth")
+    # Get the dimensions of the page
     total_height = driver.execute_script("return document.body.scrollHeight")
+    total_width = driver.execute_script("return document.body.scrollWidth")
+
+    # Set the window size to the dimensions of the page
     driver.set_window_size(total_width, total_height)
 
     # Give some time for the browser to render the changes
     time.sleep(2)
 
-    # Capture the screenshot
-    driver.save_screenshot(file_path)
+    # Scroll through the page and capture screenshots in segments
+    segments = []
+    scroll_height = 800  # Height of each segment to capture
+    for offset in range(0, total_height, scroll_height):
+        driver.execute_script(f"window.scrollTo(0, {offset});")
+        time.sleep(1)  # Wait for the scroll to finish
+        screenshot = driver.get_screenshot_as_png()
+        segments.append(Image.open(BytesIO(screenshot)))
+
+    # Stitch the segments together
+    full_image = Image.new('RGB', (total_width, total_height))
+    for index, segment in enumerate(segments):
+        full_image.paste(segment, (0, index * scroll_height))
+
+    # Save the full image
+    full_image.save(file_path)
 
 def send_email_with_screenshot(screenshot_path):
     # Send an email with the screenshot embedded
