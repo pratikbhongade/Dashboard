@@ -4,9 +4,31 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 from dash.dependencies import Input, Output
+from datetime import datetime, timedelta
 
 # Specify the database name you identified in SSMS
 database_name = 'ASPIRE'  # Replace with the actual database name
+
+# Function to get the last business day
+def get_last_business_day():
+    today = datetime.today()
+    if today.weekday() == 0:  # Monday
+        last_business_day = today - timedelta(days=3)
+    elif today.weekday() == 6:  # Sunday
+        last_business_day = today - timedelta(days=2)
+    else:  # Any other day (Tuesday to Saturday)
+        last_business_day = today - timedelta(days=1)
+    
+    # Ensure the date is within the current month
+    if last_business_day.month != today.month:
+        last_business_day = today.replace(day=1) - timedelta(days=1)
+        while last_business_day.weekday() >= 5:  # Skip weekends
+            last_business_day -= timedelta(days=1)
+    
+    return last_business_day
+
+# Get the default date
+default_date = get_last_business_day().strftime('%Y-%m-%d')
 
 # Initialize the Dash app with Bootstrap CSS
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -14,19 +36,21 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=8),
+        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=12)
+    ], className='border mb-3 align-items-center'),
+    dbc.Row([
         dbc.Col([
             dbc.InputGroup([
+                dbc.InputGroupText("📅"),  # Emoji for the calendar
                 dcc.DatePickerSingle(
                     id='date-picker',
                     display_format='YYYY-MM-DD',
-                    date='2024-06-21',  # Default date
+                    date=default_date,  # Default date
                     className='form-control'
-                ),
-                dbc.InputGroupText(html.I(className="bi bi-calendar ms-2"))  # Bootstrap icon for the calendar
-            ], className='d-flex justify-content-end')
-        ], width=4)
-    ], className='border mb-3 align-items-center'),
+                )
+            ], className='mb-4 justify-content-center')
+        ], width=12)
+    ], className='border mb-3'),
     dbc.Row([
         dbc.Col([
             dbc.Card(
@@ -58,7 +82,10 @@ app.layout = dbc.Container([
     ], className='border mb-3'),
     dbc.Row([
         dbc.Col([
-            html.Div(id='job-table', className='border')
+            html.Div([
+                html.H4("Job Table", className='bg-primary text-white p-2 rounded'),  # Highlighted heading
+                html.Div(id='job-table', className='border')
+            ])
         ], width=12)
     ], className='border')
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
