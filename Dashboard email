@@ -9,6 +9,7 @@ import os
 from selenium import webdriver
 import time
 import win32com.client as win32
+from multiprocessing import Process
 
 # List of bank holidays
 bank_holidays = [
@@ -195,12 +196,10 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
     return benchmark_update_table, job_name_options, job_status_options, job_table
 
+def run_dash_app():
+    app.run_server(debug=True, use_reloader=False)
+
 def run_dashboard():
-    from multiprocessing import Process
-
-    def run_dash_app():
-        app.run_server(debug=True, use_reloader=False)
-
     dash_process = Process(target=run_dash_app)
     dash_process.start()
 
