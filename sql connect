@@ -31,7 +31,7 @@ def get_last_business_day():
     # Ensure the date is within the current month
     if last_business_day.month != today.month:
         last_business_day = today.replace(day=1) - timedelta(days=1)
-        while last_business_day.weekday() >= 5:  # Skip weekends
+        while last_business_day.weekday() >= 5 or last_business_day.strftime('%Y-%m-%d') in bank_holidays:  # Skip weekends and holidays
             last_business_day -= timedelta(days=1)
     
     return last_business_day
@@ -47,24 +47,41 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=8),
         dbc.Col([
-            html.Div(
-                [
-                    dcc.DatePickerSingle(
-                        id='date-picker',
-                        display_format='YYYY-MM-DD',
-                        date=default_date,  # Default date
-                        className='form-control'
-                    ),
-                    html.Span(
-                        "📅", 
-                        id='calendar-icon',
-                        style={'cursor': 'pointer', 'margin-left': '-30px'}
-                    )
-                ],
-                className='d-flex justify-content-end'
-            )
+            html.Div([
+                dcc.DatePickerSingle(
+                    id='date-picker',
+                    display_format='YYYY-MM-DD',
+                    date=default_date,  # Default date
+                    className='form-control'
+                ),
+                html.Span("📅", style={'cursor': 'default', 'margin-left': '5px'})
+            ], className='d-flex justify-content-end align-items-center')
         ], width=4)
     ], className='border mb-3 align-items-center'),
+    dbc.Row([
+        dbc.Col([
+            dbc.Table([
+                dbc.Thead(
+                    dbc.Tr([
+                        dbc.Th("Calendar"),
+                    ])
+                ),
+                dbc.Tbody([
+                    dbc.Tr([
+                        dbc.Td([
+                            dcc.DatePickerSingle(
+                                id='date-picker-table',
+                                display_format='YYYY-MM-DD',
+                                date=default_date,  # Default date
+                                className='form-control'
+                            ),
+                            html.Span("📅", style={'cursor': 'default', 'margin-left': '5px'})
+                        ])
+                    ])
+                ])
+            ], className='table-bordered')
+        ], width=3, className='d-flex justify-content-end mb-4')
+    ]),
     dbc.Row([
         dbc.Col([
             dbc.Card(
@@ -130,37 +147,47 @@ def update_dashboard(selected_date, selected_job, selected_status):
     )
     conn = pyodbc.connect(conn_str)
 
-    # Updated SQL query with selective date in JSH.StartTime
+    # Updated SQL query with selective date in ProcessingDate
     query = f"""
-    SELECT CASE 
-               WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
-               ELSE CONVERT(varchar, JSH.StartTime, 23) 
-           END as ProcessingDate, 
-           JSJ.JobStreamJoboid as Joboid, 
-           JSJ.Name as JobName,
-           CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime], 
-           CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime], 
-           JSH.Status, 
-           JSH.Message 
+    SELECT 
+        CASE 
+            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+            ELSE CONVERT(varchar, JSH.StartTime, 23) 
+        END as ProcessingDate, 
+        JSJ.JobStreamJoboid as Joboid, 
+        JSJ.Name as JobName,
+        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime], 
+        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime], 
+        JSH.Status, 
+        JSH.Message 
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE JSH.StartTime >= '{selected_date} 00:00:00' AND JSH.StartTime < DATEADD(day, 1, '{selected_date}')
+    WHERE 
+        CASE 
+            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+            ELSE CONVERT(varchar, JSH.StartTime, 23) 
+        END = '{selected_date}'
     UNION
-    SELECT CASE 
-               WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
-               ELSE CONVERT(varchar, JSH.StartTime, 23) 
-           END as ProcessingDate, 
-           JSJ.JobStreamJoboid as Joboid, 
-           JSJ.Name as JobName, 
-           CONVERT(datetime, (JSH.StartTime)) AS [StartTime], 
-           CONVERT(datetime, (JSH.EndTime)) AS [EndTime], 
-           JSH.Status, 
-           JSH.Message 
+    SELECT 
+        CASE 
+            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+            ELSE CONVERT(varchar, JSH.StartTime, 23) 
+        END as ProcessingDate, 
+        JSJ.JobStreamJoboid as Joboid, 
+        JSJ.Name as JobName, 
+        CONVERT(datetime, (JSH.StartTime)) AS [StartTime], 
+        CONVERT(datetime, (JSH.EndTime)) AS [EndTime], 
+        JSH.Status, 
+        JSH.Message 
     FROM JobStreamTaskHistory JSH 
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE JSH.StartTime >= '{selected_date} 00:00:00' AND JSH.StartTime < DATEADD(day, 1, '{selected_date}')
+    WHERE 
+        CASE 
+            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+            ELSE CONVERT(varchar, JSH.StartTime, 23) 
+        END = '{selected_date}'
     ORDER BY StartTime DESC
     """
     df = pd.read_sql(query, conn)
@@ -197,20 +224,6 @@ def update_dashboard(selected_date, selected_job, selected_status):
     job_table = dbc.Table(job_table_header + job_table_body, striped=True, bordered=True, hover=True)
 
     return benchmark_update_table, job_name_options, job_status_options, job_table
-
-# JavaScript to handle the calendar icon click
-app.clientside_callback(
-    """
-    function(n_clicks) {
-        if (n_clicks > 0) {
-            document.querySelector('.DateInput_input').focus();
-        }
-        return '';
-    }
-    """,
-    Output('calendar-icon', 'children'),
-    [Input('calendar-icon', 'n_clicks')]
-)
 
 if __name__ == '__main__':
     app.run_server(debug=True)
