@@ -9,7 +9,9 @@ import os
 from selenium import webdriver
 import time
 import win32com.client as win32
+from selenium.webdriver.chrome.options import Options
 from PIL import Image
+from pdf2image import convert_from_path
 from multiprocessing import Process, Queue
 
 # List of bank holidays
@@ -210,49 +212,38 @@ def run_dashboard():
     time.sleep(5)
 
     # Set up Selenium WebDriver (ensure you have a compatible WebDriver, e.g., EdgeDriver, in PATH)
-    driver = webdriver.Edge()
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    driver = webdriver.Chrome(options=options)
 
     # Open the Dash app in the browser
     driver.get("http://127.0.0.1:8050/")
 
     return driver, dash_process, queue
 
-def capture_full_page_screenshot(driver, file_path):
-    # Get the dimensions of the page
-    total_height = driver.execute_script("return document.body.scrollHeight")
-    total_width = driver.execute_script("return document.body.scrollWidth")
+def save_full_page_as_pdf(driver, file_path):
+    # Save the full page as PDF
+    driver.execute_script("document.body.style.zoom='100%'")
+    time.sleep(1)
+    driver.execute_cdp_cmd("Page.printToPDF", {"path": file_path, "format": "A4"})
 
-    # Set the window size to the dimensions of the page
-    driver.set_window_size(total_width, total_height)
+def convert_pdf_to_image(pdf_path, image_path):
+    # Convert the first page of the PDF to an image
+    images = convert_from_path(pdf_path)
+    images[0].save(image_path, 'PNG')
 
-    # Give some time for the browser to render the changes
-    time.sleep(2)
-
-    # Scroll through the page and capture screenshots in segments
-    segments = []
-    scroll_height = 800  # Height of each segment to capture
-    for offset in range(0, total_height, scroll_height):
-        driver.execute_script(f"window.scrollTo(0, {offset});")
-        time.sleep(1)  # Wait for the scroll to finish
-        screenshot = driver.get_screenshot_as_png()
-        segments.append(Image.open(BytesIO(screenshot)))
-
-    # Stitch the segments together
-    full_image = Image.new('RGB', (total_width, total_height))
-    for index, segment in enumerate(segments):
-        full_image.paste(segment, (0, index * scroll_height))
-
-    # Save the full image
-    full_image.save(file_path)
-
-def send_email_with_screenshot(screenshot_path):
+def send_email_with_screenshot(image_path):
     # Send an email with the screenshot embedded
     outlook = win32.Dispatch('outlook.application')
     mail = outlook.CreateItem(0)
     mail.To = 'Pratik_Bhongade@Keybank.com'
     mail.Subject = 'Aspire Dashboard'
     
-    with open(screenshot_path, 'rb') as f:
+    with open(image_path, 'rb') as f:
         image_data = f.read()
         image_cid = 'dashboard_image'
     
@@ -261,7 +252,7 @@ def send_email_with_screenshot(screenshot_path):
     <img src="cid:{image_cid}" width="800">
     '''
 
-    attachment = mail.Attachments.Add(screenshot_path)
+    attachment = mail.Attachments.Add(image_path)
     attachment.PropertyAccessor.SetProperty("http://schemas.microsoft.com/mapi/proptag/0x3712001F", image_cid)
 
     mail.Send()
@@ -288,13 +279,17 @@ def main():
         except KeyboardInterrupt:
             pass
     elif choice == '2':
-        # Capture the full page screenshot
-        screenshot_path = r"C:\Aspire_Dashboard\dashboard.png"
-        os.makedirs(os.path.dirname(screenshot_path), exist_ok=True)
-        capture_full_page_screenshot(driver, screenshot_path)
+        # Save the full page as PDF
+        pdf_path = r"C:\Aspire_Dashboard\dashboard.pdf"
+        image_path = r"C:\Aspire_Dashboard\dashboard.png"
+        os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+        save_full_page_as_pdf(driver, pdf_path)
+
+        # Convert the PDF to an image
+        convert_pdf_to_image(pdf_path, image_path)
 
         # Send the email with the screenshot
-        send_email_with_screenshot(screenshot_path)
+        send_email_with_screenshot(image_path)
 
         # Close the browser and stop the Dash app
         driver.quit()
