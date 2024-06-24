@@ -21,14 +21,19 @@ conn = pyodbc.connect(conn_str)
 
 # Query the data
 query = """
-SELECT JobName, StartTime, EndTime, Status 
-FROM AchBank 
-ORDER BY StartTime DESC
-"""  # Replace with your actual query and table name
+SELECT JobName, StartTime, EndTime, JobStatus 
+FROM Job_Stats
+WHERE ProcessDate='2024-06-21' 
+ORDER BY ProcessDate DESC
+"""
 df = pd.read_sql(query, conn)
 
 # Close the connection
 conn.close()
+
+# Separate the "Unlock Online" job
+unlock_online_df = df[df['JobName'] == 'Unlock Online']
+other_jobs_df = df[df['JobName'] != 'Unlock Online']
 
 # Initialize the Dash app with Bootstrap CSS
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -40,9 +45,20 @@ app.layout = dbc.Container([
     ]),
     dbc.Row([
         dbc.Col([
+            dbc.Card(
+                dbc.CardBody([
+                    html.H4("Unlock Online Job", className='card-title'),
+                    dbc.Table.from_dataframe(unlock_online_df, striped=True, bordered=True, hover=True, className='table-dark')
+                ]),
+                className='mb-4'
+            )
+        ], width=12)
+    ]),
+    dbc.Row([
+        dbc.Col([
             dcc.Dropdown(
                 id='job-name-dropdown',
-                options=[{'label': job, 'value': job} for job in df['JobName'].unique()],
+                options=[{'label': job, 'value': job} for job in other_jobs_df['JobName'].unique()],
                 placeholder="Select a Job Name",
                 className='mb-4'
             )
@@ -50,7 +66,7 @@ app.layout = dbc.Container([
         dbc.Col([
             dcc.Dropdown(
                 id='status-dropdown',
-                options=[{'label': status, 'value': status} for status in df['Status'].unique()],
+                options=[{'label': status, 'value': status} for status in other_jobs_df['JobStatus'].unique()],
                 placeholder="Select Job Status",
                 className='mb-4'
             )
@@ -70,11 +86,11 @@ app.layout = dbc.Container([
      Input('status-dropdown', 'value')]
 )
 def update_table(selected_job, selected_status):
-    filtered_df = df
+    filtered_df = other_jobs_df
     if selected_job:
         filtered_df = filtered_df[filtered_df['JobName'] == selected_job]
     if selected_status:
-        filtered_df = filtered_df[filtered_df['Status'] == selected_status]
+        filtered_df = filtered_df[filtered_df['JobStatus'] == selected_status]
     
     return dbc.Table.from_dataframe(filtered_df, striped=True, bordered=True, hover=True)
 
