@@ -1,0 +1,21 @@
+import pyodbc
+import pandas as pd
+
+# Set up the connection to SQL Server
+conn = pyodbc.connect(
+    'DRIVER={SQL Server};'
+    'SERVER=your_server_name;'
+    'DATABASE=your_database_name;'
+    'UID=your_username;'
+    'PWD=your_password'
+)
+
+# Query the data
+query = "SELECT * FROM your_table_name"
+df = pd.read_sql(query, conn)
+
+# Close the connection
+conn.close()
+
+# Display the DataFrame to ensure data is loaded
+print(df.head())
