@@ -58,8 +58,8 @@ app.layout = dbc.Container([
         dbc.Col([
             dbc.Card(
                 dbc.CardBody([
-                    html.H4("UnLock Online Job", className='card-title'),
-                    html.Div(id='unlock-online-table')
+                    html.H4("Benchmark Update Job", className='card-title'),
+                    html.Div(id='benchmark-update-table')
                 ]),
                 className='mb-4 border'
             )
@@ -92,7 +92,7 @@ app.layout = dbc.Container([
 
 # Callback to update the tables and dropdowns based on the selected date
 @app.callback(
-    [Output('unlock-online-table', 'children'),
+    [Output('benchmark-update-table', 'children'),
      Output('job-name-dropdown', 'options'),
      Output('status-dropdown', 'options'),
      Output('job-table-container', 'children')],
@@ -163,12 +163,12 @@ def update_dashboard(selected_date, selected_job, selected_status):
     df['EndDate'] = pd.to_datetime(df['EndTime']).dt.strftime('%Y-%m-%d')
     df['EndTime'] = pd.to_datetime(df['EndTime']).dt.strftime('%I:%M:%S %p')
 
-    # Separate the "UnLock Online" job
-    unlock_online_df = df[df['JobName'] == 'UnLock Online']
-    other_jobs_df = df[df['JobName'] != 'UnLock Online']
+    # Separate the "Benchmark Update" job
+    benchmark_update_df = df[df['JobName'] == 'Benchmark Update']
+    other_jobs_df = df[df['JobName'] != 'Benchmark Update']
 
     # Create tables and dropdown options
-    unlock_online_table = dbc.Table.from_dataframe(unlock_online_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], striped=True, bordered=True, hover=True, className='table-dark')
+    benchmark_update_table = dbc.Table.from_dataframe(benchmark_update_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], striped=True, bordered=True, hover=True, className='table-dark')
     
     job_name_options = [{'label': job, 'value': job} for job in other_jobs_df['JobName'].unique()]
     job_status_options = [{'label': status, 'value': status} for status in other_jobs_df['Status'].unique()]
@@ -184,7 +184,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
     job_table = dbc.Table(job_table_header + job_table_body, striped=True, bordered=True, hover=True)
 
-    return unlock_online_table, job_name_options, job_status_options, job_table
+    return benchmark_update_table, job_name_options, job_status_options, job_table
 
 # JavaScript to handle the calendar icon click
 app.clientside_callback(
