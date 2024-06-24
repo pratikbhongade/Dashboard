@@ -36,19 +36,27 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=8),
-        dbc.Col([
-            dbc.InputGroup([
-                dcc.DatePickerSingle(
-                    id='date-picker',
-                    display_format='YYYY-MM-DD',
-                    date=default_date,  # Default date
-                    className='form-control'
-                ),
-                dbc.InputGroupText("📅")  # Emoji for the calendar
-            ], className='d-flex justify-content-end')
-        ], width=4)
+        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=12),
     ], className='border mb-3 align-items-center'),
+    dbc.Row([
+        dbc.Col(
+            [
+                dbc.InputGroup(
+                    [
+                        dcc.DatePickerSingle(
+                            id='date-picker',
+                            display_format='YYYY-MM-DD',
+                            date=default_date,  # Default date
+                            className='form-control'
+                        ),
+                        dbc.InputGroupText("📅")  # Emoji for the calendar
+                    ], 
+                    className='d-flex justify-content-end'
+                )
+            ], 
+            width=4, className='ml-auto'
+        )
+    ], className='border mb-3 justify-content-end'),
     dbc.Row([
         dbc.Col([
             dbc.Card(
