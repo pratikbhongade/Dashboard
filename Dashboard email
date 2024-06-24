@@ -9,7 +9,7 @@ import os
 from selenium import webdriver
 import time
 import win32com.client as win32
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 
 # List of bank holidays
 bank_holidays = [
@@ -196,11 +196,13 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
     return benchmark_update_table, job_name_options, job_status_options, job_table
 
-def run_dash_app():
+def run_dash_app(queue):
     app.run_server(debug=True, use_reloader=False)
+    queue.put("Dash app stopped")
 
 def run_dashboard():
-    dash_process = Process(target=run_dash_app)
+    queue = Queue()
+    dash_process = Process(target=run_dash_app, args=(queue,))
     dash_process.start()
 
     # Give the server some time to start
@@ -212,7 +214,7 @@ def run_dashboard():
     # Open the Dash app in the browser
     driver.get("http://127.0.0.1:8050/")
 
-    return driver, dash_process
+    return driver, dash_process, queue
 
 def capture_screenshot(driver):
     # Give some time to load the dashboard
@@ -254,10 +256,19 @@ def main():
     print("2. View Dashboard and send email")
     choice = input("Enter 1 or 2: ")
 
-    driver, dash_process = run_dashboard()
+    driver, dash_process, queue = run_dashboard()
 
     if choice == '1':
         print("Dashboard is running. Press Ctrl+C to stop.")
+        try:
+            while True:
+                if not queue.empty():
+                    message = queue.get()
+                    if message == "Dash app stopped":
+                        break
+                time.sleep(1)
+        except KeyboardInterrupt:
+            pass
     elif choice == '2':
         screenshot_path = capture_screenshot(driver)
         send_email_with_screenshot(screenshot_path)
