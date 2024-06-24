@@ -36,27 +36,19 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=12),
+        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=8),
+        dbc.Col([
+            dbc.InputGroup([
+                dcc.DatePickerSingle(
+                    id='date-picker',
+                    display_format='YYYY-MM-DD',
+                    date=default_date,  # Default date
+                    className='form-control'
+                ),
+                dbc.InputGroupText("📅")  # Emoji for the calendar
+            ], className='d-flex justify-content-end')
+        ], width=4)
     ], className='border mb-3 align-items-center'),
-    dbc.Row([
-        dbc.Col(
-            [
-                dbc.InputGroup(
-                    [
-                        dcc.DatePickerSingle(
-                            id='date-picker',
-                            display_format='YYYY-MM-DD',
-                            date=default_date,  # Default date
-                            className='form-control'
-                        ),
-                        dbc.InputGroupText("📅")  # Emoji for the calendar
-                    ], 
-                    className='d-flex justify-content-end'
-                )
-            ], 
-            width=4, className='ml-auto'
-        )
-    ], className='border mb-3 justify-content-end'),
     dbc.Row([
         dbc.Col([
             dbc.Card(
@@ -113,11 +105,37 @@ def update_dashboard(selected_date, selected_job, selected_status):
     )
     conn = pyodbc.connect(conn_str)
 
-    # Query the data
+    # Updated SQL query with selective date in JSH.StartTime
     query = f"""
-    SELECT JobName, StartTime, EndTime, Status 
-    FROM Job_StatsVW
-    WHERE ProcessingDate='{selected_date}' 
+    SELECT CASE 
+               WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+               ELSE CONVERT(varchar, JSH.StartTime, 23) 
+           END as ProcessingDate, 
+           JSJ.JobStreamJoboid as Joboid, 
+           JSJ.Name as JobName,
+           CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime], 
+           CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime], 
+           JSH.Status, 
+           JSH.Message 
+    FROM JobStreamTaskHistory JSH
+    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
+    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
+    WHERE JSH.StartTime >= '{selected_date} 00:00:00' AND JSH.StartTime < DATEADD(day, 1, '{selected_date}')
+    UNION
+    SELECT CASE 
+               WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+               ELSE CONVERT(varchar, JSH.StartTime, 23) 
+           END as ProcessingDate, 
+           JSJ.JobStreamJoboid as Joboid, 
+           JSJ.Name as JobName, 
+           CONVERT(datetime, (JSH.StartTime)) AS [StartTime], 
+           CONVERT(datetime, (JSH.EndTime)) AS [EndTime], 
+           JSH.Status, 
+           JSH.Message 
+    FROM JobStreamTaskHistory JSH 
+    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
+    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
+    WHERE JSH.StartTime >= '{selected_date} 00:00:00' AND JSH.StartTime < DATEADD(day, 1, '{selected_date}')
     ORDER BY StartTime DESC
     """
     df = pd.read_sql(query, conn)
