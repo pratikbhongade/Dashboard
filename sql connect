@@ -21,10 +21,18 @@ bank_holidays = [
 # Function to get the last business day
 def get_last_business_day():
     today = datetime.today()
-    last_business_day = today
-
-    while last_business_day.weekday() >= 5 or last_business_day.strftime('%Y-%m-%d') in bank_holidays:
-        last_business_day -= timedelta(days=1)
+    if today.weekday() == 0:  # Monday
+        last_business_day = today - timedelta(days=3)
+    elif today.weekday() == 6:  # Sunday
+        last_business_day = today - timedelta(days=2)
+    else:  # Any other day (Tuesday to Saturday)
+        last_business_day = today - timedelta(days=1)
+    
+    # Ensure the date is within the current month
+    if last_business_day.month != today.month:
+        last_business_day = today.replace(day=1) - timedelta(days=1)
+        while last_business_day.weekday() >= 5:  # Skip weekends
+            last_business_day -= timedelta(days=1)
     
     return last_business_day
 
@@ -39,34 +47,24 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=8),
         dbc.Col([
-            dbc.InputGroup([
-                dcc.DatePickerSingle(
-                    id='date-picker',
-                    display_format='YYYY-MM-DD',
-                    date=default_date,  # Default date
-                    className='form-control'
-                ),
-                html.Span(
-                    "📅", 
-                    id='calendar-icon',
-                    style={'cursor': 'pointer', 'margin-left': '-30px'}
-                )
-            ], className='d-flex justify-content-end')
-        ], width=4)
-    ], className='border mb-3 align-items-center'),
-    dbc.Row([
-        dbc.Col([
             html.Div(
-                dcc.DatePickerSingle(
-                    id='date-picker',
-                    display_format='YYYY-MM-DD',
-                    date=default_date,  # Default date
-                    className='form-control'
-                ),
+                [
+                    dcc.DatePickerSingle(
+                        id='date-picker',
+                        display_format='YYYY-MM-DD',
+                        date=default_date,  # Default date
+                        className='form-control'
+                    ),
+                    html.Span(
+                        "📅", 
+                        id='calendar-icon',
+                        style={'cursor': 'pointer', 'margin-left': '-30px'}
+                    )
+                ],
                 className='d-flex justify-content-end'
             )
-        ], width=12, className='d-flex justify-content-end mb-4')
-    ]),
+        ], width=4)
+    ], className='border mb-3 align-items-center'),
     dbc.Row([
         dbc.Col([
             dbc.Card(
@@ -176,14 +174,15 @@ def update_dashboard(selected_date, selected_job, selected_status):
     df['EndDate'] = pd.to_datetime(df['EndTime']).dt.strftime('%Y-%m-%d')
     df['EndTime'] = pd.to_datetime(df['EndTime']).dt.strftime('%I:%M:%S %p')
 
-    # Separate the "Benchmark Update" job
-    benchmark_update_df = df[df['JobName'] == 'Benchmark Update']
-    other_jobs_df = df[df['JobName'] != 'Benchmark Update']
+    # Separate the "20. Benchmark Update" job
+    benchmark_update_df = df[df['JobName'] == '20. Benchmark Update']
+    benchmark_update_df['JobName'] = benchmark_update_df['JobName'].str.replace('20. ', '')
+    other_jobs_df = df[df['JobName'] != '20. Benchmark Update']
 
     # Create tables and dropdown options
     benchmark_update_table = dbc.Table.from_dataframe(benchmark_update_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], striped=True, bordered=True, hover=True, className='table-dark')
     
-    job_name_options = [{'label': job, 'value': job} for job in other_jobs_df['JobName'].unique()]
+    job_name_options = [{'label': job.replace('20. ', ''), 'value': job} for job in other_jobs_df['JobName'].unique()]
     job_status_options = [{'label': status, 'value': status} for status in other_jobs_df['Status'].unique()]
 
     filtered_df = other_jobs_df
