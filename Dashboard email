@@ -1,0 +1,240 @@
+import pyodbc
+import pandas as pd
+import dash
+import dash_bootstrap_components as dbc
+from dash import dcc, html
+from dash.dependencies import Input, Output
+from datetime import datetime, timedelta
+import os
+from selenium import webdriver
+import time
+import win32com.client as win32
+
+# List of bank holidays
+bank_holidays = [
+    "2024-01-01",  # New Year's Day
+    "2024-01-15",  # Martin Luther King, Jr. Day
+    "2024-05-27",  # Memorial Day
+    "2024-06-19",  # Juneteenth National Independence Day
+    "2024-07-04",  # Independence Day
+    "2024-09-02",  # Labor Day
+    "2024-11-28",  # Thanksgiving Day
+    "2024-12-25"   # Christmas
+]
+
+# Function to get the last business day
+def get_last_business_day():
+    today = datetime.today()
+    if today.weekday() == 0:  # Monday
+        last_business_day = today - timedelta(days=3)
+    elif today.weekday() == 6:  # Sunday
+        last_business_day = today - timedelta(days=2)
+    else:  # Any other day (Tuesday to Saturday)
+        last_business_day = today - timedelta(days=1)
+    
+    # Ensure the date is within the current month
+    if last_business_day.month != today.month:
+        last_business_day = today.replace(day=1) - timedelta(days=1)
+        while last_business_day.weekday() >= 5 or last_business_day.strftime('%Y-%m-%d') in bank_holidays:  # Skip weekends and holidays
+            last_business_day -= timedelta(days=1)
+    
+    return last_business_day
+
+# Get the default date
+default_date = get_last_business_day().strftime('%Y-%m-%d')
+
+# Initialize the Dash app with Bootstrap CSS
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+# Layout of the dashboard
+app.layout = dbc.Container([
+    dbc.Row([
+        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=9),
+        dbc.Col([
+            dbc.Table([
+                html.Thead(
+                    html.Tr([
+                        html.Th("Select Date"),
+                    ])
+                ),
+                html.Tbody([
+                    html.Tr([
+                        html.Td([
+                            dcc.DatePickerSingle(
+                                id='date-picker-table',
+                                display_format='YYYY-MM-DD',
+                                date=default_date,  # Default date
+                                className='form-control'
+                            )
+                        ])
+                    ])
+                ])
+            ], className='table-bordered')
+        ], width=3, className='d-flex justify-content-end mb-4')
+    ], className='border mb-3 align-items-center'),
+    dbc.Row([
+        dbc.Col([
+            dbc.Card(
+                dbc.CardBody([
+                    html.H4("Benchmark Update Job", className='card-title'),
+                    html.Div(id='benchmark-update-table')
+                ]),
+                className='mb-4 border'
+            )
+        ], width=12)
+    ], className='border mb-3'),
+    dbc.Row([
+        dbc.Col([
+            dcc.Dropdown(
+                id='job-name-dropdown',
+                options=[],
+                placeholder="Select a Job Name",
+                className='mb-4'
+            )
+        ], width=6),
+        dbc.Col([
+            dcc.Dropdown(
+                id='status-dropdown',
+                options=[],
+                placeholder="Select Job Status",
+                className='mb-4'
+            )
+        ], width=6)
+    ], className='border mb-3'),
+    dbc.Row([
+        dbc.Col([
+            html.Div(id='job-table-container')
+        ], width=12)
+    ], className='border')
+], fluid=True, className='p-4 bg-light rounded-3 shadow')
+
+# Callback to update the tables and dropdowns based on the selected date
+@app.callback(
+    [Output('benchmark-update-table', 'children'),
+     Output('job-name-dropdown', 'options'),
+     Output('status-dropdown', 'options'),
+     Output('job-table-container', 'children')],
+    [Input('date-picker-table', 'date'),
+     Input('job-name-dropdown', 'value'),
+     Input('status-dropdown', 'value')]
+)
+def update_dashboard(selected_date, selected_job, selected_status):
+    if selected_date in bank_holidays or datetime.strptime(selected_date, '%Y-%m-%d').weekday() >= 5:
+        # Display a message if the selected date is a bank holiday or a weekend
+        message = html.Div(
+            [
+                html.H4("Bank Holiday: No Data Available", className='text-center text-danger')
+            ]
+        )
+        return message, [], [], message
+
+    # Connect to SQL Server
+    conn_str = (
+        r'DRIVER={SQL Server};'
+        r'SERVER=SDC01ASRSQTD01\TSQLINT0;'
+        r'DATABASE=AspireDB;'
+        r'Trusted_Connection=yes;'
+    )
+    conn = pyodbc.connect(conn_str)
+
+    # Updated SQL query with selective date in ProcessingDate
+    query = f"""
+    SELECT 
+        CASE 
+            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+            ELSE CONVERT(varchar, JSH.StartTime, 23) 
+        END as ProcessingDate, 
+        JSJ.JobStreamJoboid as Joboid, 
+        JSJ.Name as JobName,
+        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime], 
+        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime], 
+        JSH.Status, 
+        JSH.Message 
+    FROM JobStreamTaskHistory JSH
+    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
+    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
+    WHERE 
+        CASE 
+            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+            ELSE CONVERT(varchar, JSH.StartTime, 23) 
+        END = '{selected_date}'
+    ORDER BY StartTime DESC
+    """
+    df = pd.read_sql(query, conn)
+
+    # Close the connection
+    conn.close()
+
+    # Format datetime columns
+    df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
+    df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
+    df['EndDate'] = pd.to_datetime(df['EndTime']).dt.strftime('%Y-%m-%d')
+    df['EndTime'] = pd.to_datetime(df['EndTime']).dt.strftime('%I:%M:%S %p')
+
+    # Separate the "20. Benchmark Update" job
+    benchmark_update_df = df[df['JobName'] == '20. Benchmark Update'].copy()
+    benchmark_update_df.loc[:, 'JobName'] = benchmark_update_df['JobName'].str.replace('20. ', '', regex=True)
+    other_jobs_df = df[df['JobName'] != '20. Benchmark Update']
+
+    # Create tables and dropdown options
+    benchmark_update_table = dbc.Table.from_dataframe(benchmark_update_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], striped=True, bordered=True, hover=True, className='table-dark')
+    
+    job_name_options = [{'label': job.replace('20. ', ''), 'value': job} for job in other_jobs_df['JobName'].unique()]
+    job_status_options = [{'label': status, 'value': status} for status in other_jobs_df['Status'].unique()]
+
+    filtered_df = other_jobs_df
+    if selected_job:
+        filtered_df = filtered_df[filtered_df['JobName'] == selected_job]
+    if selected_status:
+        filtered_df = filtered_df[filtered_df['Status'] == selected_status]
+
+    job_table_header = [html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], className='bg-primary text-white'))]
+    job_table_body = [html.Tbody([html.Tr([html.Td(filtered_df.iloc[i][col]) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']]) for i in range(len(filtered_df))])]
+
+    job_table = dbc.Table(job_table_header + job_table_body, striped=True, bordered=True, hover=True)
+
+    return benchmark_update_table, job_name_options, job_status_options, job_table
+
+if __name__ == '__main__':
+    # Run the Dash app
+    from multiprocessing import Process
+
+    def run_dash_app():
+        app.run_server(debug=True, use_reloader=False)
+
+    dash_process = Process(target=run_dash_app)
+    dash_process.start()
+
+    # Give the server some time to start
+    time.sleep(5)
+
+    # Set up Selenium WebDriver (ensure you have a compatible WebDriver, e.g., ChromeDriver, in PATH)
+    driver = webdriver.Chrome()
+
+    # Open the Dash app in the browser
+    driver.get("http://127.0.0.1:8050/")
+
+    # Give some time to load the dashboard
+    time.sleep(5)
+
+    # Capture the screenshot and save it
+    screenshot_path = r"C:\Aspire_Dashboard\dashboard.png"
+    os.makedirs(os.path.dirname(screenshot_path), exist_ok=True)
+    driver.save_screenshot(screenshot_path)
+
+    # Close the browser
+    driver.quit()
+
+    # Stop the Dash app
+    dash_process.terminate()
+
+    # Send an email with the screenshot
+    outlook = win32.Dispatch('outlook.application')
+    mail = outlook.CreateItem(0)
+    mail.To = 'recipient@example.com'
+    mail.Subject = 'Aspire Dashboard'
+    mail.HTMLBody = '<h2>See the attached Dashboard Image</h2>'
+    mail.Attachments.Add(screenshot_path)
+    mail.Send()
+
+    print("Email sent with the dashboard image.")
