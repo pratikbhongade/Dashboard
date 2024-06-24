@@ -1,21 +1,53 @@
 import pyodbc
 import pandas as pd
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output
+import plotly.express as px
 
-# Set up the connection to SQL Server
-conn = pyodbc.connect(
-    'DRIVER={SQL Server};'
-    'SERVER=your_server_name;'
-    'DATABASE=your_database_name;'
-    'UID=your_username;'
-    'PWD=your_password'
+# Specify the database name you identified in SSMS
+database_name = 'ASPIRE'  # Replace with the actual database name
+
+# Connection string using Windows Authentication (Trusted_Connection)
+conn_str = (
+    r'DRIVER={SQL Server};'
+    r'SERVER=SDC01ASRSQTD01\TSQLINT0;'
+    r'DATABASE=' + database_name + r';'
+    r'Trusted_Connection=yes;'
 )
 
+# Connect to SQL Server
+conn = pyodbc.connect(conn_str)
+
 # Query the data
-query = "SELECT * FROM your_table_name"
+query = "SELECT TOP 20 * FROM AchBank"  # Replace with your actual query and table name
 df = pd.read_sql(query, conn)
 
 # Close the connection
 conn.close()
 
-# Display the DataFrame to ensure data is loaded
-print(df.head())
+# Initialize the Dash app
+app = dash.Dash(__name__)
+
+# Layout of the dashboard
+app.layout = html.Div([
+    html.H1("SQL Server Data Dashboard"),
+    dcc.Dropdown(
+        id='dropdown',
+        options=[{'label': col, 'value': col} for col in df.columns],
+        value=df.columns[0]  # Default value
+    ),
+    dcc.Graph(id='bar-graph')
+])
+
+# Callback to update the bar chart based on dropdown selection
+@app.callback(
+    Output('bar-graph', 'figure'),
+    [Input('dropdown', 'value')]
+)
+def update_graph(selected_column):
+    fig = px.bar(df, x=selected_column, y=df.columns[1])  # Customize as needed
+    return fig
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
