@@ -50,7 +50,7 @@ app.layout = dbc.Container([
             dbc.Table([
                 html.Thead(
                     html.Tr([
-                        html.Th("Calendar"),
+                        html.Th("Select Date"),
                     ])
                 ),
                 html.Tbody([
@@ -61,8 +61,7 @@ app.layout = dbc.Container([
                                 display_format='YYYY-MM-DD',
                                 date=default_date,  # Default date
                                 className='form-control'
-                            ),
-                            html.Span("📅", style={'cursor': 'default', 'margin-left': '5px'})
+                            )
                         ])
                     ])
                 ])
@@ -169,8 +168,8 @@ def update_dashboard(selected_date, selected_job, selected_status):
     df['EndTime'] = pd.to_datetime(df['EndTime']).dt.strftime('%I:%M:%S %p')
 
     # Separate the "20. Benchmark Update" job
-    benchmark_update_df = df[df['JobName'] == '20. Benchmark Update']
-    benchmark_update_df['JobName'] = benchmark_update_df['JobName'].str.replace('20. ', '')
+    benchmark_update_df = df[df['JobName'] == '20. Benchmark Update'].copy()
+    benchmark_update_df.loc[:, 'JobName'] = benchmark_update_df['JobName'].str.replace('20. ', '', regex=True)
     other_jobs_df = df[df['JobName'] != '20. Benchmark Update']
 
     # Create tables and dropdown options
