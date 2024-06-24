@@ -45,29 +45,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=8),
-        dbc.Col([
-            html.Div([
-                dcc.DatePickerSingle(
-                    id='date-picker',
-                    display_format='YYYY-MM-DD',
-                    date=default_date,  # Default date
-                    className='form-control'
-                ),
-                html.Span("📅", style={'cursor': 'default', 'margin-left': '5px'})
-            ], className='d-flex justify-content-end align-items-center')
-        ], width=4)
-    ], className='border mb-3 align-items-center'),
-    dbc.Row([
-        dbc.Col([
-            dbc.Card(
-                dbc.CardBody([
-                    html.H4("Benchmark Update Job", className='card-title'),
-                    html.Div(id='benchmark-update-table')
-                ]),
-                className='mb-4 border'
-            )
-        ], width=9),
+        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=9),
         dbc.Col([
             dbc.Table([
                 html.Thead(
@@ -90,7 +68,18 @@ app.layout = dbc.Container([
                 ])
             ], className='table-bordered')
         ], width=3, className='d-flex justify-content-end mb-4')
-    ]),
+    ], className='border mb-3 align-items-center'),
+    dbc.Row([
+        dbc.Col([
+            dbc.Card(
+                dbc.CardBody([
+                    html.H4("Benchmark Update Job", className='card-title'),
+                    html.Div(id='benchmark-update-table')
+                ]),
+                className='mb-4 border'
+            )
+        ], width=12)
+    ], className='border mb-3'),
     dbc.Row([
         dbc.Col([
             dcc.Dropdown(
