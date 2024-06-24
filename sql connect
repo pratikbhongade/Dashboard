@@ -5,27 +5,28 @@ import dash_bootstrap_components as dbc
 from dash import dcc, html
 from dash.dependencies import Input, Output
 
+# Specify the database name you identified in SSMS
+database_name = 'ASPIRE'  # Replace with the actual database name
+
 # Initialize the Dash app with Bootstrap CSS
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=12)
-    ], className='border mb-3'),
-    dbc.Row([
+        dbc.Col(html.H1("Mainframe Job Status Dashboard", className='text-center mb-4'), width=8),
         dbc.Col([
             dbc.InputGroup([
-                dbc.InputGroupText(html.I(className="bi bi-calendar")),  # Bootstrap icon for the calendar
                 dcc.DatePickerSingle(
                     id='date-picker',
                     display_format='YYYY-MM-DD',
                     date='2024-06-21',  # Default date
                     className='form-control'
-                )
-            ], className='mb-4')
-        ], width=6)
-    ], className='border mb-3'),
+                ),
+                dbc.InputGroupText(html.I(className="bi bi-calendar ms-2"))  # Bootstrap icon for the calendar
+            ], className='d-flex justify-content-end')
+        ], width=4)
+    ], className='border mb-3 align-items-center'),
     dbc.Row([
         dbc.Col([
             dbc.Card(
@@ -60,7 +61,7 @@ app.layout = dbc.Container([
             html.Div(id='job-table', className='border')
         ], width=12)
     ], className='border')
-], fluid=True)
+], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
 # Callback to update the tables and dropdowns based on the selected date
 @app.callback(
@@ -77,7 +78,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     conn_str = (
         r'DRIVER={SQL Server};'
         r'SERVER=SDC01ASRSQTD01\TSQLINT0;'
-        r'DATABASE=ASPIRE;'
+        r'DATABASE=' + database_name + r';'
         r'Trusted_Connection=yes;'
     )
     conn = pyodbc.connect(conn_str)
