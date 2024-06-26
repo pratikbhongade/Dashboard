@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 import os
 from PIL import Image
 from selenium import webdriver
-from selenium.webdriver.edge.service import Service as EdgeService
-from selenium.webdriver.edge.options import Options
-import time as t
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options
+from io import BytesIO
+import time
 import win32com.client as win32
 from multiprocessing import Process, Queue
 
@@ -211,15 +212,17 @@ def run_dashboard():
     # Give the server some time to start
     time.sleep(5)
 
-    # Set up Selenium WebDriver for Edge (ensure you have a compatible Edge WebDriver in PATH)
-    edge_options = Options()
-    edge_options.add_argument("--no-sandbox")
-    edge_options.add_argument('disable-notifications')
-    edge_options.add_argument("window-size=1280,720")
+    # Set up Selenium WebDriver for Chrome (ensure you have a compatible Chrome WebDriver in PATH)
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--window-size=1280,720")
 
-    edge_driver_path = "C:\\edgedriver_win64\\msedgedriver.exe"
-    webdriver_service = EdgeService(edge_driver_path)
-    driver = webdriver.Edge(service=webdriver_service, options=edge_options)
+    chrome_driver_path = "C:\\chromedriver_win64\\chromedriver.exe"
+    webdriver_service = ChromeService(chrome_driver_path)
+    driver = webdriver.Chrome(service=webdriver_service, options=chrome_options)
 
     # Open the Dash app in the browser
     driver.get("http://127.0.0.1:8050/")
@@ -234,7 +237,7 @@ def capture_full_page_screenshot(driver, file_path):
 
     # Set the browser window to the total page width
     driver.set_window_size(total_width, viewport_height)
-    t.sleep(2)  # Allow time for the window resize to take effect
+    time.sleep(2)  # Allow time for the window resize to take effect
 
     # List to hold individual screenshots
     screenshots = []
@@ -244,11 +247,11 @@ def capture_full_page_screenshot(driver, file_path):
         if i + viewport_height > total_height:
             viewport_height = total_height - i
             driver.execute_script(f"window.scrollTo(0, {i});")
-            t.sleep(1)
+            time.sleep(1)
             driver.set_window_size(total_width, viewport_height)
         else:
             driver.execute_script(f"window.scrollTo(0, {i});")
-            t.sleep(1)
+            time.sleep(1)
         
         screenshot = driver.get_screenshot_as_png()
         screenshots.append(Image.open(BytesIO(screenshot)))
