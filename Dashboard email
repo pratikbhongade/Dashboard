@@ -6,11 +6,12 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 from datetime import datetime, timedelta
 import os
-from selenium import webdriver
-import time
-import win32com.client as win32
 from PIL import Image
-from io import BytesIO
+from selenium import webdriver
+from selenium.webdriver.edge.service import Service as EdgeService
+from selenium.webdriver.edge.options import Options
+import time as t
+import win32com.client as win32
 from multiprocessing import Process, Queue
 
 # List of bank holidays
@@ -211,13 +212,14 @@ def run_dashboard():
     time.sleep(5)
 
     # Set up Selenium WebDriver for Edge (ensure you have a compatible Edge WebDriver in PATH)
-    options = webdriver.EdgeOptions()
-    options.add_argument("--headless")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
-    driver = webdriver.Edge(options=options)
+    edge_options = Options()
+    edge_options.add_argument("--no-sandbox")
+    edge_options.add_argument('disable-notifications')
+    edge_options.add_argument("window-size=1280,720")
+
+    edge_driver_path = "C:\\edgedriver_win64\\msedgedriver.exe"
+    webdriver_service = EdgeService(edge_driver_path)
+    driver = webdriver.Edge(service=webdriver_service, options=edge_options)
 
     # Open the Dash app in the browser
     driver.get("http://127.0.0.1:8050/")
@@ -226,31 +228,39 @@ def run_dashboard():
 
 def capture_full_page_screenshot(driver, file_path):
     # Get the dimensions of the page
-    total_height = driver.execute_script("return document.body.scrollHeight")
     total_width = driver.execute_script("return document.body.scrollWidth")
+    total_height = driver.execute_script("return document.body.scrollHeight")
+    viewport_height = driver.execute_script("return window.innerHeight")
 
-    # Set the window size to the dimensions of the page
-    driver.set_window_size(total_width, total_height)
+    # Set the browser window to the total page width
+    driver.set_window_size(total_width, viewport_height)
+    t.sleep(2)  # Allow time for the window resize to take effect
 
-    # Give some time for the browser to render the changes
-    time.sleep(2)
+    # List to hold individual screenshots
+    screenshots = []
 
-    # Scroll through the page and capture screenshots in segments
-    segments = []
-    scroll_height = 800  # Height of each segment to capture
-    for offset in range(0, total_height, scroll_height):
-        driver.execute_script(f"window.scrollTo(0, {offset});")
-        time.sleep(1)  # Wait for the scroll to finish
+    # Scroll and capture screenshots
+    for i in range(0, total_height, viewport_height):
+        if i + viewport_height > total_height:
+            viewport_height = total_height - i
+            driver.execute_script(f"window.scrollTo(0, {i});")
+            t.sleep(1)
+            driver.set_window_size(total_width, viewport_height)
+        else:
+            driver.execute_script(f"window.scrollTo(0, {i});")
+            t.sleep(1)
+        
         screenshot = driver.get_screenshot_as_png()
-        segments.append(Image.open(BytesIO(screenshot)))
+        screenshots.append(Image.open(BytesIO(screenshot)))
 
-    # Stitch the segments together
-    full_image = Image.new('RGB', (total_width, total_height))
-    for index, segment in enumerate(segments):
-        full_image.paste(segment, (0, index * scroll_height))
+    # Stitch screenshots together
+    stitched_image = Image.new('RGB', (total_width, total_height))
+    y_offset = 0
+    for screenshot in screenshots:
+        stitched_image.paste(screenshot, (0, y_offset))
+        y_offset += screenshot.size[1]
 
-    # Save the full image
-    full_image.save(file_path)
+    stitched_image.save(file_path)
 
 def send_email_with_screenshot(image_path):
     # Send an email with the screenshot embedded
