@@ -202,7 +202,6 @@ def update_dashboard(selected_date, selected_job, selected_status):
     SELECT 
         CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
         JSJ.Name as JobName,
-        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime], 
         CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime]
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
@@ -269,7 +268,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     print("Merged dataframe (first 5 rows):")
     print(merged_df.head())
 
-    merged_df['TimeDifference'] = (merged_df['EndTime_TRIAD'] - merged_df['EndTime_Benchmark']).dt.total_seconds() / 60
+    merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
     # Debug: Print dataframe with time difference
     print("Dataframe with Time Difference (first 5 rows):")
