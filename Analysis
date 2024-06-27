@@ -55,6 +55,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
+        dbc.Col(html.Img(src='/assets/logo.png', height='60px'), width='auto'),
         dbc.Col(html.H1("Aspire Job Status Dashboard", className='text-center mb-4'), width=9),
         dbc.Col([
             dbc.Table([
@@ -396,5 +397,5 @@ def main():
         driver.quit()
         dash_process.terminate()
 
-if __name__ == '__main__':
+if __name__ == '__':":
     main()
