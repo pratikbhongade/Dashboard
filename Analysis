@@ -9,12 +9,13 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options as Options
 from io import BytesIO
 import time
 import win32com.client as win32
 from multiprocessing import Process, Queue
 import plotly.express as px
+import plotly.graph_objects as go
 import base64
 
 # Path to your logo image
@@ -64,13 +65,14 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px'), width='auto'),
-        dbc.Col(html.H1("Aspire Job Status Dashboard", className='text-center mb-4'), width=True, className='d-flex justify-content-center align-items-center'),
+        dbc.Col(html.H1("ASPIRE DASHBOARD", className='text-center mb-4', style={'font-weight': 'bold'}), width=True, className='d-flex justify-content-center align-items-center'),
         dbc.Col([
             dcc.DatePickerSingle(
                 id='date-picker-table',
                 display_format='YYYY-MM-DD',
                 date=default_date,  # Default date
-                className='form-control'
+                className='form-control',
+                style={'font-weight': 'bold'}
             )
         ], width='auto', className='d-flex justify-content-end align-items-center')
     ], className='border mb-3 align-items-center'),
@@ -78,7 +80,7 @@ app.layout = dbc.Container([
         dbc.Col([
             dbc.Card(
                 dbc.CardBody([
-                    html.H4("Benchmark Update Job", className='card-title'),
+                    html.H4("ASPIRE UNLOCK ONLINE", className='card-title'),
                     html.Div(id='benchmark-update-table')
                 ]),
                 className='mb-4 border'
@@ -237,7 +239,42 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
     status_counts = df['Status'].value_counts().reset_index()
     status_counts.columns = ['Status', 'Count']
-    fig_status = px.bar(status_counts, x='Count', y='Status', orientation='h', title='Job Status Counts')
+
+    # Customize the bar graph for Job Status Counts
+    fig_status = go.Figure(data=[
+        go.Bar(
+            x=status_counts['Count'],
+            y=status_counts['Status'],
+            orientation='h',
+            marker=dict(
+                color=status_counts['Status'].apply(lambda x: 'green' if x == 'Succeeded' else 'orange' if x == 'Succeeded with Exception' else 'red'),
+                line=dict(color='black', width=1)
+            )
+        )
+    ])
+    fig_status.update_layout(
+        title='Job Status Counts',
+        xaxis_title='Count',
+        yaxis_title='Status',
+        template='plotly_white',
+        plot_bgcolor='rgba(0,0,0,0)',
+        title_font=dict(size=24, family='Arial, bold', color='black'),
+        xaxis=dict(
+            showgrid=False,
+            showline=True,
+            linewidth=1,
+            linecolor='black',
+            mirror=True
+        ),
+        yaxis=dict(
+            showgrid=False,
+            showline=True,
+            linewidth=1,
+            linecolor='black',
+            mirror=True
+        ),
+        font=dict(size=14)
+    )
 
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate'])
     df_failed = df_30_days[df_30_days['Status'] == 'Failed']
