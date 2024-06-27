@@ -185,8 +185,13 @@ def update_dashboard(selected_date, selected_job, selected_status):
     query_30_days = """
     SELECT 
         CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
-        JSH.Status
+        JSH.Status,
+        JSJ.Name as JobName,
+        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime],
+        JSH.Message
     FROM JobStreamTaskHistory JSH
+    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
+    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
     WHERE JSH.StartTime >= DATEADD(day, -30, GETDATE())
     """
     df_30_days = pd.read_sql(query_30_days, conn)
@@ -230,8 +235,9 @@ def update_dashboard(selected_date, selected_job, selected_status):
     # Create the bar graph for failure trend over the last 30 days
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate'])
     df_failed = df_30_days[df_30_days['Status'] == 'Failed']
-    failure_trend = df_failed.groupby('ProcessingDate').size().reset_index(name='Count')
-    fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', title='Failure Trend Over the Last 30 Days')
+    failure_trend = df_failed.groupby(['ProcessingDate', 'JobName']).size().reset_index(name='Count')
+    fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
+                       hover_data={'StartTime': True, 'JobName': True, 'Message': True})
 
     return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend
 
