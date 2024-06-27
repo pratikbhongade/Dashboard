@@ -1,0 +1,347 @@
+import pyodbc
+import pandas as pd
+import dash
+import dash_bootstrap_components as dbc
+from dash import dcc, html
+from dash.dependencies import Input, Output
+from datetime import datetime, timedelta
+import os
+from PIL import Image
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options
+from io import BytesIO
+import time
+import win32com.client as win32
+from multiprocessing import Process, Queue
+import plotly.express as px
+
+# List of bank holidays
+bank_holidays = [
+    "2024-01-01",  # New Year's Day
+    "2024-01-15",  # Martin Luther King, Jr. Day
+    "2024-05-27",  # Memorial Day
+    "2024-06-19",  # Juneteenth National Independence Day
+    "2024-07-04",  # Independence Day
+    "2024-09-02",  # Labor Day
+    "2024-11-28",  # Thanksgiving Day
+    "2024-12-25"   # Christmas
+]
+
+# Function to get the last business day
+def get_last_business_day():
+    today = datetime.today()
+    if today.weekday() == 0:  # Monday
+        last_business_day = today - timedelta(days=3)
+    elif today.weekday() == 6:  # Sunday
+        last_business_day = today - timedelta(days=2)
+    else:  # Any other day (Tuesday to Saturday)
+        last_business_day = today - timedelta(days=1)
+    
+    # Ensure the date is within the current month
+    if last_business_day.month != today.month:
+        last_business_day = today.replace(day=1) - timedelta(days=1)
+        while last_business_day.weekday() >= 5 or last_business_day.strftime('%Y-%m-%d') in bank_holidays:  # Skip weekends and holidays
+            last_business_day -= timedelta(days=1)
+    
+    return last_business_day
+
+# Get the default date
+default_date = get_last_business_day().strftime('%Y-%m-%d')
+
+# Initialize the Dash app with Bootstrap CSS
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+# Layout of the dashboard
+app.layout = dbc.Container([
+    dbc.Row([
+        dbc.Col(html.H1("Aspire Job Status Dashboard", className='text-center mb-4'), width=9),
+        dbc.Col([
+            dbc.Table([
+                html.Thead(
+                    html.Tr([
+                        html.Th("Select Date"),
+                    ])
+                ),
+                html.Tbody([
+                    html.Tr([
+                        html.Td([
+                            dcc.DatePickerSingle(
+                                id='date-picker-table',
+                                display_format='YYYY-MM-DD',
+                                date=default_date,  # Default date
+                                className='form-control'
+                            )
+                        ])
+                    ])
+                ])
+            ], className='table-bordered')
+        ], width=3, className='d-flex justify-content-end mb-4')
+    ], className='border mb-3 align-items-center'),
+    dbc.Row([
+        dbc.Col([
+            dbc.Card(
+                dbc.CardBody([
+                    html.H4("Benchmark Update Job", className='card-title'),
+                    html.Div(id='benchmark-update-table')
+                ]),
+                className='mb-4 border'
+            )
+        ], width=12)
+    ], className='border mb-3'),
+    dbc.Row([
+        dbc.Col([
+            dcc.Dropdown(
+                id='job-name-dropdown',
+                options=[],
+                placeholder="Select a Job Name",
+                className='mb-4'
+            )
+        ], width=6),
+        dbc.Col([
+            dcc.Dropdown(
+                id='status-dropdown',
+                options=[],
+                placeholder="Select Job Status",
+                className='mb-4'
+            )
+        ], width=6)
+    ], className='border mb-3'),
+    dbc.Row([
+        dbc.Col([
+            html.Div(id='job-table-container')
+        ], width=12)
+    ], className='border'),
+    dbc.Row([
+        dbc.Col([
+            dcc.Graph(id='status-bar-graph')
+        ], width=12)
+    ], className='border')
+], fluid=True, className='p-4 bg-light rounded-3 shadow')
+
+# Callback to update the tables and dropdowns based on the selected date
+@app.callback(
+    [Output('benchmark-update-table', 'children'),
+     Output('job-name-dropdown', 'options'),
+     Output('status-dropdown', 'options'),
+     Output('job-table-container', 'children'),
+     Output('status-bar-graph', 'figure')],
+    [Input('date-picker-table', 'date'),
+     Input('job-name-dropdown', 'value'),
+     Input('status-dropdown', 'value')]
+)
+def update_dashboard(selected_date, selected_job, selected_status):
+    if selected_date in bank_holidays or datetime.strptime(selected_date, '%Y-%m-%d').weekday() >= 5:
+        # Display a message if the selected date is a bank holiday or a weekend
+        message = html.Div(
+            [
+                html.H4("Bank Holiday: No Data Available", className='text-center text-danger')
+            ]
+        )
+        empty_fig = px.bar()
+        return message, [], [], message, empty_fig
+
+    # Connect to SQL Server
+    conn_str = (
+        r'DRIVER={SQL Server};'
+        r'SERVER=SDC01ASRSQTD01\TSQLINT0;'
+        r'DATABASE=ASPIRE;'
+        r'Trusted_Connection=yes;'
+    )
+    conn = pyodbc.connect(conn_str)
+
+    # Updated SQL query with selective date in ProcessingDate
+    query = f"""
+    SELECT 
+        CASE 
+            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+            ELSE CONVERT(varchar, JSH.StartTime, 23) 
+        END as ProcessingDate, 
+        JSJ.JobStreamJoboid as Joboid, 
+        JSJ.Name as JobName,
+        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime], 
+        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime], 
+        JSH.Status, 
+        JSH.Message 
+    FROM JobStreamTaskHistory JSH
+    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
+    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
+    WHERE 
+        CASE 
+            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+            ELSE CONVERT(varchar, JSH.StartTime, 23) 
+        END = '{selected_date}'
+    ORDER BY StartTime ASC
+    """
+    df = pd.read_sql(query, conn)
+
+    # Close the connection
+    conn.close()
+
+    # Format datetime columns
+    df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
+    df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
+    df['EndDate'] = pd.to_datetime(df['EndTime']).dt.strftime('%Y-%m-%d')
+    df['EndTime'] = pd.to_datetime(df['EndTime']).dt.strftime('%I:%M:%S %p')
+
+    # Separate the "20. Benchmark Update" job
+    benchmark_update_df = df[df['JobName'] == '20. Benchmark Update'].copy()
+    benchmark_update_df.loc[:, 'JobName'] = benchmark_update_df['JobName'].str.replace('20. ', '', regex=True)
+    other_jobs_df = df[df['JobName'] != '20. Benchmark Update']
+
+    # Create tables and dropdown options
+    benchmark_update_table = dbc.Table.from_dataframe(benchmark_update_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], striped=True, bordered=True, hover=True, className='table-dark')
+    
+    job_name_options = [{'label': job.replace('20. ', ''), 'value': job} for job in other_jobs_df['JobName'].unique()]
+    job_status_options = [{'label': status, 'value': status} for status in other_jobs_df['Status'].unique()]
+
+    filtered_df = other_jobs_df
+    if selected_job:
+        filtered_df = filtered_df[filtered_df['JobName'] == selected_job]
+    if selected_status:
+        filtered_df = filtered_df[filtered_df['Status'] == selected_status]
+
+    job_table_header = [html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], className='bg-primary text-white'))]
+    job_table_body = [html.Tbody([html.Tr([html.Td(filtered_df.iloc[i][col]) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']]) for i in range(len(filtered_df))])]
+
+    job_table = dbc.Table(job_table_header + job_table_body, striped=True, bordered=True, hover=True)
+
+    # Create the bar graph for job status counts
+    status_counts = df['Status'].value_counts().reset_index()
+    status_counts.columns = ['Status', 'Count']
+    fig = px.bar(status_counts, x='Count', y='Status', orientation='h', title='Job Status Counts')
+
+    return benchmark_update_table, job_name_options, job_status_options, job_table, fig
+
+def run_dash_app(queue):
+    print("Starting Dash app...")
+    app.run_server(debug=True, port=8050, use_reloader=False)
+    print("Dash app stopped.")
+    queue.put("Dash app stopped")
+
+def run_dashboard():
+    queue = Queue()
+    dash_process = Process(target=run_dash_app, args=(queue,))
+    dash_process.start()
+
+    # Give the server some time to start
+    time.sleep(10)  # Increased wait time to ensure the server starts
+
+    # Set up Selenium WebDriver for Chrome (ensure you have a compatible Chrome WebDriver in PATH)
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--window-size=1920,1080")  # Increase window size for full capture
+
+    chrome_driver_path = "C:\\chromedriver_win64\\chromedriver.exe"
+    print(f"Using ChromeDriver from: {chrome_driver_path}")
+
+    webdriver_service = ChromeService(executable_path=chrome_driver_path)
+    try:
+        driver = webdriver.Chrome(service=webdriver_service, options=chrome_options)
+    except Exception as e:
+        print(f"Error initializing Chrome WebDriver: {e}")
+        raise
+
+    # Open the Dash app in the browser
+    print("Opening Dash app in Chrome browser...")
+    driver.get("http://127.0.0.1:8050/")
+    time.sleep(5)  # Give some time to ensure the page loads
+
+    return driver, dash_process, queue
+
+def capture_full_page_screenshot(driver, file_path):
+    # Get the dimensions of the page
+    total_width = driver.execute_script("return document.body.scrollWidth")
+    total_height = driver.execute_script("return document.body.scrollHeight")
+    viewport_height = driver.execute_script("return window.innerHeight")
+
+    # Set the browser window to the total page width
+    driver.set_window_size(total_width, viewport_height)
+    time.sleep(2)  # Allow time for the window resize to take effect
+
+    # List to hold individual screenshots
+    screenshots = []
+
+    # Scroll and capture screenshots
+    for i in range(0, total_height, viewport_height):
+        if i + viewport_height > total_height:
+            viewport_height = total_height - i
+            driver.execute_script(f"window.scrollTo(0, {i});")
+            time.sleep(1)
+            driver.set_window_size(total_width, viewport_height)
+        else:
+            driver.execute_script(f"window.scrollTo(0, {i});")
+            time.sleep(1)
+        
+        screenshot = driver.get_screenshot_as_png()
+        screenshots.append(Image.open(BytesIO(screenshot)))
+
+    # Stitch screenshots together
+    stitched_image = Image.new('RGB', (total_width, total_height))
+    y_offset = 0
+    for screenshot in screenshots:
+        stitched_image.paste(screenshot, (0, y_offset))
+        y_offset += screenshot.size[1]
+
+    stitched_image.save(file_path)
+
+def send_email_with_screenshot(image_path):
+    # Send an email with the screenshot embedded
+    outlook = win32.Dispatch('outlook.application')
+    mail = outlook.CreateItem(0)
+    mail.To = 'Pratik_Bhongade@Keybank.com'
+    mail.Subject = 'Aspire Dashboard'
+    
+    with open(image_path, 'rb') as f:
+        image_data = f.read()
+        image_cid = 'dashboard_image'
+    
+    mail.HTMLBody = f'''
+    <h2>See the Dashboard Image below:</h2>
+    <img src="cid:{image_cid}" width="800">
+    '''
+
+    attachment = mail.Attachments.Add(image_path)
+    attachment.PropertyAccessor.SetProperty("http://schemas.microsoft.com/mapi/proptag/0x3712001F", image_cid)
+
+    mail.Send()
+
+    print("Email sent with the dashboard image embedded.")
+
+def main():
+    print("Choose an option:")
+    print("1. Just view Dashboard and don't send email")
+    print("2. View Dashboard and send email")
+    choice = input("Enter 1 or 2: ")
+
+    driver, dash_process, queue = run_dashboard()
+
+    if choice == '1':
+        print("Dashboard is running. Press Ctrl+C to stop.")
+        try:
+            while True:
+                if not queue.empty():
+                    message = queue.get()
+                    if message == "Dash app stopped":
+                        break
+                time.sleep(1)
+        except KeyboardInterrupt:
+            pass
+    elif choice == '2':
+        # Capture the full page screenshot
+        image_path = r"C:\Aspire_Dashboard\dashboard.png"
+        os.makedirs(os.path.dirname(image_path), exist_ok=True)
+        capture_full_page_screenshot(driver, image_path)
+
+        # Send the email with the screenshot
+        send_email_with_screenshot(image_path)
+
+        # Close the browser and stop the Dash app
+        driver.quit()
+        dash_process.terminate()
+
+if __name__ == '__main__':
+    main()
