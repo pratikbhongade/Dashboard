@@ -207,7 +207,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
     WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
-    AND (JSJ.Name = 'TRIAD' OR JSJ.Name = '20. Benchmark Update')
+    AND (JSJ.Name = '18. TRIAD' OR JSJ.Name = '20. Benchmark Update')
     ORDER BY ProcessingDate, JSJ.Name
     """
     df_6_months = pd.read_sql(query_6_months, conn)
@@ -249,7 +249,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
 
-    triad_df = df_6_months[df_6_months['JobName'] == 'TRIAD']
+    triad_df = df_6_months[df_6_months['JobName'] == '18. TRIAD']
     benchmark_update_df = df_6_months[df_6_months['JobName'] == '20. Benchmark Update']
 
     # Ensure there is data to merge
