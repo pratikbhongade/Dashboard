@@ -65,7 +65,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px'), width='auto'),
-        dbc.Col(html.H1("ASPIRE DASHBOARD", className='text-center mb-4', style={'font-weight': 'bold', 'color': '#007BFF'}), width=True, className='d-flex justify-content-center align-items-center'),
+        dbc.Col(html.H1("ASPIRE DASHBOARD", className='text-center mb-4', style={'font-weight': 'bold', 'color': '#2A3F5F'}), width=True, className='d-flex justify-content-center align-items-center'),
         dbc.Col([
             html.Div("Pick a date 📆", className='text-center mb-2', style={'font-weight': 'bold'}),
             dcc.DatePickerSingle(
@@ -73,7 +73,7 @@ app.layout = dbc.Container([
                 display_format='YYYY-MM-DD',
                 date=default_date,  # Default date
                 className='form-control',
-                style={'font-weight': 'bold', 'color': '#007BFF'}
+                style={'font-weight': 'bold', 'color': '#007BFF', 'background-color': '#fff', 'border': '1px solid #ced4da', 'border-radius': '.25rem', 'padding': '.375rem .75rem', 'font-size': '1rem', 'line-height': '1.5', 'color': '#495057'}
             )
         ], width='auto', className='d-flex justify-content-end align-items-center')
     ], className='border mb-3 align-items-center'),
@@ -258,21 +258,23 @@ def update_dashboard(selected_date, selected_job, selected_status):
         xaxis_title='Count',
         yaxis_title='Status',
         template='plotly_white',
-        plot_bgcolor='rgba(240,240,240,0.5)',
-        title_font=dict(size=24, family='Arial, bold', color='black'),
+        plot_bgcolor='rgba(229,236,246,1)',
+        title_font=dict(size=24, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
         xaxis=dict(
-            showgrid=False,
+            showgrid=True,
             showline=True,
             linewidth=1,
             linecolor='black',
-            mirror=True
+            mirror=True,
+            gridcolor='lightgrey'
         ),
         yaxis=dict(
-            showgrid=False,
+            showgrid=True,
             showline=True,
             linewidth=1,
             linecolor='black',
-            mirror=True
+            mirror=True,
+            gridcolor='lightgrey'
         ),
         font=dict(size=14)
     )
