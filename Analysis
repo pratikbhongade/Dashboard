@@ -121,6 +121,11 @@ app.layout = dbc.Container([
         dbc.Col([
             dcc.Graph(id='failure-trend-graph')
         ], width=12)
+    ], className='border'),
+    dbc.Row([
+        dbc.Col([
+            dcc.Graph(id='sourcing-time-graph')
+        ], width=12)
     ], className='border')
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
@@ -131,7 +136,8 @@ app.layout = dbc.Container([
      Output('status-dropdown', 'options'),
      Output('job-table-container', 'children'),
      Output('status-bar-graph', 'figure'),
-     Output('failure-trend-graph', 'figure')],
+     Output('failure-trend-graph', 'figure'),
+     Output('sourcing-time-graph', 'figure')],
     [Input('date-picker-table', 'date'),
      Input('job-name-dropdown', 'value'),
      Input('status-dropdown', 'value')]
@@ -145,7 +151,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig
 
     # Connect to SQL Server
     conn_str = (
@@ -188,6 +194,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
         JSH.Status,
         JSJ.Name as JobName,
         CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime],
+        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime],
         JSH.Message
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
@@ -195,6 +202,19 @@ def update_dashboard(selected_date, selected_job, selected_status):
     WHERE JSH.StartTime >= DATEADD(day, -30, GETDATE())
     """
     df_30_days = pd.read_sql(query_30_days, conn)
+
+    # Query for sourcing time over the last 6 months
+    query_sourcing_time = """
+    SELECT 
+        CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
+        JSJ.Name as JobName,
+        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime]
+    FROM JobStreamTaskHistory JSH
+    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
+    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
+    WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
+    """
+    df_sourcing_time = pd.read_sql(query_sourcing_time, conn)
 
     # Close the connection
     conn.close()
@@ -239,7 +259,22 @@ def update_dashboard(selected_date, selected_job, selected_status):
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
 
-    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend
+    # Calculate sourcing time
+    triad_jobs = df_sourcing_time[df_sourcing_time['JobName'] == 'TRIAD']
+    benchmark_jobs = df_sourcing_time[df_sourcing_time['JobName'].str.contains('Benchmark Update')]
+    sourcing_time = []
+
+    for date in triad_jobs['ProcessingDate'].unique():
+        triad_end_time = triad_jobs[triad_jobs['ProcessingDate'] == date]['EndTime'].max()
+        benchmark_end_time = benchmark_jobs[benchmark_jobs['ProcessingDate'] == date]['EndTime'].max()
+        if pd.notnull(triad_end_time) and pd.notnull(benchmark_end_time):
+            time_diff = (benchmark_end_time - triad_end_time).total_seconds() / 3600
+            sourcing_time.append({'ProcessingDate': date, 'SourcingTime': time_diff})
+
+    df_sourcing_time_diff = pd.DataFrame(sourcing_time)
+    fig_sourcing = px.line(df_sourcing_time_diff, x='ProcessingDate', y='SourcingTime', title='Sourcing Time Over the Last 6 Months')
+
+    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_sourcing
 
 def run_dash_app(queue):
     print("Starting Dash app...")
