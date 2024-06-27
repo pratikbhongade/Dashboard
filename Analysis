@@ -235,7 +235,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     # Create the bar graph for failure trend over the last 30 days
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate'])
     df_failed = df_30_days[df_30_days['Status'] == 'Failed']
-    failure_trend = df_failed.groupby(['ProcessingDate', 'JobName']).size().reset_index(name='Count')
+    failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
 
