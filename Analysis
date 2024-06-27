@@ -356,7 +356,7 @@ def send_email_with_screenshot(image_path):
     outlook = win32.Dispatch('outlook.application')
     mail = outlook.CreateItem(0)
     mail.To = 'Pratik_Bhongade@Keybank.com'
-    mail.Subject = 'Aspire Dashboard'
+    mail.Subject = 'Aspire Job Dashboard'
     
     with open(image_path, 'rb') as f:
         image_data = f.read()
