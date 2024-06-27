@@ -272,6 +272,10 @@ def update_dashboard(selected_date, selected_job, selected_status):
             sourcing_time.append({'ProcessingDate': date, 'SourcingTime': time_diff})
 
     df_sourcing_time_diff = pd.DataFrame(sourcing_time)
+
+    # Ensure ProcessingDate column is correctly recognized as datetime
+    df_sourcing_time_diff['ProcessingDate'] = pd.to_datetime(df_sourcing_time_diff['ProcessingDate'])
+
     fig_sourcing = px.line(df_sourcing_time_diff, x='ProcessingDate', y='SourcingTime', title='Sourcing Time Over the Last 6 Months')
 
     return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_sourcing
@@ -356,7 +360,7 @@ def send_email_with_screenshot(image_path):
     outlook = win32.Dispatch('outlook.application')
     mail = outlook.CreateItem(0)
     mail.To = 'Pratik_Bhongade@Keybank.com'
-    mail.Subject = 'Aspire Job Dashboard'
+    mail.Subject = 'Aspire Dashboard'
     
     with open(image_path, 'rb') as f:
         image_data = f.read()
