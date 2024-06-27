@@ -58,6 +58,75 @@ def get_last_business_day():
 # Get the default date
 default_date = get_last_business_day().strftime('%Y-%m-%d')
 
+# Function to fetch data
+def fetch_data(selected_date):
+    conn_str = (
+        r'DRIVER={SQL Server};'
+        r'SERVER=SDC01ASRSQTD01\TSQLINT0;'
+        r'DATABASE=ASPIRE;'
+        r'Trusted_Connection=yes;'
+    )
+    conn = pyodbc.connect(conn_str)
+
+    query = f"""
+    SELECT 
+        CASE 
+            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+            ELSE CONVERT(varchar, JSH.StartTime, 23) 
+        END as ProcessingDate, 
+        JSJ.JobStreamJoboid as Joboid, 
+        JSJ.Name as JobName,
+        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime], 
+        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime], 
+        JSH.Status, 
+        JSH.Message 
+    FROM JobStreamTaskHistory JSH
+    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
+    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
+    WHERE 
+        CASE 
+            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
+            ELSE CONVERT(varchar, JSH.StartTime, 23) 
+        END = '{selected_date}'
+    ORDER BY StartTime ASC
+    """
+    df = pd.read_sql(query, conn)
+
+    query_30_days = """
+    SELECT 
+        CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
+        JSH.Status,
+        JSJ.Name as JobName,
+        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime],
+        JSH.Message
+    FROM JobStreamTaskHistory JSH
+    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
+    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
+    WHERE JSH.StartTime >= DATEADD(day, -30, GETDATE())
+    """
+    df_30_days = pd.read_sql(query_30_days, conn)
+
+    query_6_months = """
+    SELECT 
+        CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
+        JSJ.Name as JobName,
+        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime]
+    FROM JobStreamTaskHistory JSH
+    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
+    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
+    WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
+    AND (JSJ.Name = '18. TRIAD' OR JSJ.Name = '20. Benchmark Update')
+    ORDER BY ProcessingDate, JSJ.Name
+    """
+    df_6_months = pd.read_sql(query_6_months, conn)
+
+    conn.close()
+
+    return df, df_30_days, df_6_months
+
+# Fetch initial data
+df, df_30_days, df_6_months = fetch_data(default_date)
+
 # Initialize the Dash app with Bootstrap CSS
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -180,67 +249,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
         empty_fig = px.bar()
         return message, [], [], message, empty_fig, empty_fig, empty_fig
 
-    conn_str = (
-        r'DRIVER={SQL Server};'
-        r'SERVER=SDC01ASRSQTD01\TSQLINT0;'
-        r'DATABASE=ASPIRE;'
-        r'Trusted_Connection=yes;'
-    )
-    conn = pyodbc.connect(conn_str)
-
-    query = f"""
-    SELECT 
-        CASE 
-            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
-            ELSE CONVERT(varchar, JSH.StartTime, 23) 
-        END as ProcessingDate, 
-        JSJ.JobStreamJoboid as Joboid, 
-        JSJ.Name as JobName,
-        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime], 
-        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime], 
-        JSH.Status, 
-        JSH.Message 
-    FROM JobStreamTaskHistory JSH
-    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
-    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE 
-        CASE 
-            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
-            ELSE CONVERT(varchar, JSH.StartTime, 23) 
-        END = '{selected_date}'
-    ORDER BY StartTime ASC
-    """
-    df = pd.read_sql(query, conn)
-
-    query_30_days = """
-    SELECT 
-        CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
-        JSH.Status,
-        JSJ.Name as JobName,
-        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime],
-        JSH.Message
-    FROM JobStreamTaskHistory JSH
-    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
-    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE JSH.StartTime >= DATEADD(day, -30, GETDATE())
-    """
-    df_30_days = pd.read_sql(query_30_days, conn)
-
-    query_6_months = """
-    SELECT 
-        CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
-        JSJ.Name as JobName,
-        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime]
-    FROM JobStreamTaskHistory JSH
-    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
-    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
-    AND (JSJ.Name = '18. TRIAD' OR JSJ.Name = '20. Benchmark Update')
-    ORDER BY ProcessingDate, JSJ.Name
-    """
-    df_6_months = pd.read_sql(query_6_months, conn)
-
-    conn.close()
+    df, df_30_days, df_6_months = fetch_data(selected_date)
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -368,7 +377,7 @@ def run_dashboard():
     driver.get("http://127.0.0.1:8050/")
     time.sleep(5)  # Give some time to ensure the page loads
 
-    return driver, dash_process, queue, df
+    return driver, dash_process, queue
 
 def capture_full_page_screenshot(driver, file_path):
     # Get the dimensions of the page
@@ -447,7 +456,7 @@ def main():
     print("2. View Dashboard and send email")
     choice = input("Enter 1 or 2: ")
 
-    driver, dash_process, queue, df = run_dashboard()
+    driver, dash_process, queue = run_dashboard()
 
     if choice == '1':
         print("Dashboard is running. Press Ctrl+C to stop.")
