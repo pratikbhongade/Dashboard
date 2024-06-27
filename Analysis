@@ -15,6 +15,14 @@ import time
 import win32com.client as win32
 from multiprocessing import Process, Queue
 import plotly.express as px
+import base64
+
+# Path to your logo image
+logo_path = 'C:\\Aspire_Dashboard\\Aspire.png'
+
+# Encode the image to base64
+with open(logo_path, 'rb') as f:
+    logo_base64 = base64.b64encode(f.read()).decode('ascii')
 
 # List of bank holidays
 bank_holidays = [
@@ -55,7 +63,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.Img(src='/assets/logo.png', height='60px'), width='auto'),
+        dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px'), width='auto'),
         dbc.Col(html.H1("Aspire Job Status Dashboard", className='text-center mb-4'), width=9),
         dbc.Col([
             dbc.Table([
@@ -397,5 +405,5 @@ def main():
         driver.quit()
         dash_process.terminate()
 
-if __name__ == '__':":
+if __name__ == '__main__':
     main()
