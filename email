@@ -368,7 +368,7 @@ def run_dashboard():
     driver.get("http://127.0.0.1:8050/")
     time.sleep(5)  # Give some time to ensure the page loads
 
-    return driver, dash_process, queue
+    return driver, dash_process, queue, df
 
 def capture_full_page_screenshot(driver, file_path):
     # Get the dimensions of the page
@@ -447,7 +447,7 @@ def main():
     print("2. View Dashboard and send email")
     choice = input("Enter 1 or 2: ")
 
-    driver, dash_process, queue = run_dashboard()
+    driver, dash_process, queue, df = run_dashboard()
 
     if choice == '1':
         print("Dashboard is running. Press Ctrl+C to stop.")
