@@ -214,10 +214,6 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
     conn.close()
 
-    # Debug: Print dataframes to verify the data
-    print("Data for last 6 months (first 5 rows):")
-    print(df_6_months.head())
-
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
     df['EndDate'] = pd.to_datetime(df['EndTime']).dt.strftime('%Y-%m-%d')
@@ -256,25 +252,17 @@ def update_dashboard(selected_date, selected_job, selected_status):
     triad_df = df_6_months[df_6_months['JobName'] == 'TRIAD']
     benchmark_update_df = df_6_months[df_6_months['JobName'] == '20. Benchmark Update']
 
-    # Debug: Print separate dataframes for TRIAD and Benchmark Update
-    print("TRIAD job data (first 5 rows):")
-    print(triad_df.head())
-    print("Benchmark Update job data (first 5 rows):")
-    print(benchmark_update_df.head())
+    # Ensure there is data to merge
+    if not triad_df.empty and not benchmark_update_df.empty:
+        merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
+        merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
-    merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
-
-    # Debug: Print merged dataframe
-    print("Merged dataframe (first 5 rows):")
-    print(merged_df.head())
-
-    merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
-
-    # Debug: Print dataframe with time difference
-    print("Dataframe with Time Difference (first 5 rows):")
-    print(merged_df[['ProcessingDate', 'TimeDifference']].head())
-
-    fig_time_diff = px.line(merged_df, x='ProcessingDate', y='TimeDifference', title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 6 Months')
+        fig_time_diff = px.line(merged_df, x='ProcessingDate', y='TimeDifference', title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 6 Months')
+    else:
+        print("One or both of the dataframes are empty:")
+        print(f"TRIAD dataframe empty: {triad_df.empty}")
+        print(f"Benchmark Update dataframe empty: {benchmark_update_df.empty}")
+        fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
 
     return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff
 
