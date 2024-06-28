@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -332,6 +332,15 @@ def update_dashboard(selected_date, selected_job, selected_status):
         return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
+
+    if df.empty:
+        message = html.Div(
+            [
+                html.H4("No Data Available", className='text-center text-danger')
+            ]
+        )
+        empty_fig = px.bar()
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
