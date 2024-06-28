@@ -199,7 +199,17 @@ app.layout = dbc.Container([
         dbc.Col([
             html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3")
         ], width=12, className='d-flex justify-content-center')
-    ], className='border mt-3')
+    ], className='border mt-3'),
+    dbc.Modal(
+        [
+            dbc.ModalHeader("Email Status"),
+            dbc.ModalBody("Email sent successfully!"),
+            dbc.ModalFooter(
+                dbc.Button("Close", id="close", className="ml-auto")
+            ),
+        ],
+        id="modal",
+    )
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
 # CSS styling for the date picker input to make it bold
@@ -292,8 +302,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             orientation='h',
             marker=dict(
                 color=status_counts['Status'].apply(lambda x: 'green' if x == 'Succeeded' else 'orange' if x == 'Succeeded with Exception' else 'red'),
-                line=dict(color='black', width=1),
-                width=0.6  # Adjust this value to decrease the height of the bars
+                line=dict(color='Black', width=0.8)  # Add a slight border to the bars
             )
         )
     ])
@@ -303,24 +312,26 @@ def update_dashboard(selected_date, selected_job, selected_status):
         yaxis_title='Status',
         template='plotly_white',
         plot_bgcolor='rgba(229,236,246,1)',
+        paper_bgcolor='rgba(229,236,246,1)',  # Set the background color to match the plot background
         title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
         xaxis=dict(
             showgrid=True,
-            showline=True,
-            linewidth=1,
-            linecolor='black',
-            mirror=True,
+            showline=False,  # Remove the border line for x-axis
+            linewidth=0,
+            linecolor='rgba(0,0,0,0)',
+            mirror=False,
             gridcolor='lightgrey'
         ),
         yaxis=dict(
             showgrid=True,
-            showline=True,
-            linewidth=1,
-            linecolor='black',
-            mirror=True,
+            showline=False,  # Remove the border line for y-axis
+            linewidth=0,
+            linecolor='rgba(0,0,0,0)',
+            mirror=False,
             gridcolor='lightgrey'
         ),
-        font=dict(size=14)
+        font=dict(size=14),
+        bargap=0.4  # Adjust this value to reduce the height of the bars
     )
 
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate'])
@@ -457,11 +468,13 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
     print("Email sent with the dashboard image embedded.")
 
 @app.callback(
-    Output('send-email-button', 'n_clicks'),
+    [Output('send-email-button', 'n_clicks'),
+     Output('modal', 'is_open')],
     [Input('send-email-button', 'n_clicks')],
-    [State('date-picker-table', 'date')]
+    [State('date-picker-table', 'date'),
+     State('modal', 'is_open')]
 )
-def handle_send_email(n_clicks, selected_date):
+def handle_send_email(n_clicks, selected_date, is_open):
     if n_clicks is not None:
         driver, dash_process, queue = run_dashboard()
 
@@ -481,7 +494,19 @@ def handle_send_email(n_clicks, selected_date):
         driver.quit()
         dash_process.terminate()
 
-        return None
+        return None, not is_open
+
+    return None, is_open
+
+@app.callback(
+    Output("modal", "is_open"),
+    [Input("close", "n_clicks")],
+    [State("modal", "is_open")]
+)
+def toggle_modal(n_clicks, is_open):
+    if n_clicks:
+        return not is_open
+    return is_open
 
 def main():
     driver, dash_process, queue = run_dashboard()
