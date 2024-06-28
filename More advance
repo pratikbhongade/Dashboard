@@ -98,6 +98,7 @@ def fetch_data(selected_date):
         JSH.Status,
         JSJ.Name as JobName,
         CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime],
+        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime],
         JSH.Message
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
@@ -120,12 +121,21 @@ def fetch_data(selected_date):
     """
     df_6_months = pd.read_sql(query_6_months, conn)
 
+    query_job_duration = """
+    SELECT 
+        CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
+        DATEDIFF(SECOND, JSH.StartTime, JSH.EndTime) / 60.0 as DurationMinutes
+    FROM JobStreamTaskHistory JSH
+    WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
+    """
+    df_job_duration = pd.read_sql(query_job_duration, conn)
+
     conn.close()
 
-    return df, df_30_days, df_6_months
+    return df, df_30_days, df_6_months, df_job_duration
 
 # Fetch initial data
-df, df_30_days, df_6_months = fetch_data(default_date)
+df, df_30_days, df_6_months, df_job_duration = fetch_data(default_date)
 
 # Initialize the Dash app with Bootstrap CSS
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -146,64 +156,82 @@ app.layout = dbc.Container([
             )
         ], width='auto', className='d-flex justify-content-end align-items-center')
     ], className='border mb-3 align-items-center'),
-    dbc.Row([
-        dbc.Col([
-            dbc.Card(
-                dbc.CardBody([
-                    html.H4("ASPIRE UNLOCK ONLINE", className='card-title'),
-                    html.Div(id='benchmark-update-table')
-                ]),
-                className='mb-4 border'
-            )
-        ], width=12)
-    ], className='border mb-3'),
-    dbc.Row([
-        dbc.Col([
-            dcc.Dropdown(
-                id='job-name-dropdown',
-                options=[],
-                placeholder="Select a Job Name",
-                className='mb-4'
-            )
-        ], width=6),
-        dbc.Col([
-            dcc.Dropdown(
-                id='status-dropdown',
-                options=[],
-                placeholder="Select Job Status",
-                className='mb-4'
-            )
-        ], width=6)
-    ], className='border mb-3'),
-    dbc.Row([
-        dbc.Col([
-            html.Div(id='job-table-container')
-        ], width=12)
-    ], className='border'),
-    dbc.Row([
-        dbc.Col([
-            dcc.Graph(id='status-bar-graph')
-        ], width=12)
-    ], className='border'),
-    dbc.Row([
-        dbc.Col([
-            dcc.Graph(id='failure-trend-graph')
-        ], width=12)
-    ], className='border'),
-    dbc.Row([
-        dbc.Col([
-            dcc.Graph(id='time-difference-graph')
-        ], width=12)
-    ], className='border'),
-    dbc.Row([
-        dbc.Col([
-            dcc.ConfirmDialogProvider(
-                children=html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3"),
-                id='confirm-dialog',
-                message='Email sent successfully!'
-            )
-        ], width=12, className='d-flex justify-content-center')
-    ], className='border mt-3')
+    dbc.Tabs([
+        dbc.Tab(label='Main Dashboard', tab_id='main-dashboard', children=[
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card(
+                        dbc.CardBody([
+                            html.H4("ASPIRE UNLOCK ONLINE", className='card-title'),
+                            html.Div(id='benchmark-update-table')
+                        ]),
+                        className='mb-4 border'
+                    )
+                ], width=12)
+            ], className='border mb-3'),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Dropdown(
+                        id='job-name-dropdown',
+                        options=[],
+                        placeholder="Select a Job Name",
+                        className='mb-4'
+                    )
+                ], width=6),
+                dbc.Col([
+                    dcc.Dropdown(
+                        id='status-dropdown',
+                        options=[],
+                        placeholder="Select Job Status",
+                        className='mb-4'
+                    )
+                ], width=6)
+            ], className='border mb-3'),
+            dbc.Row([
+                dbc.Col([
+                    html.Div(id='job-table-container')
+                ], width=12)
+            ], className='border'),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Graph(id='status-bar-graph')
+                ], width=12)
+            ], className='border'),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Graph(id='failure-trend-graph')
+                ], width=12)
+            ], className='border'),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Graph(id='time-difference-graph')
+                ], width=12)
+            ], className='border'),
+            dbc.Row([
+                dbc.Col([
+                    html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3")
+                ], width=12, className='d-flex justify-content-center')
+            ], className='border mt-3')
+        ]),
+        dbc.Tab(label='Job Duration Analysis', tab_id='job-duration', children=[
+            dbc.Row([
+                dbc.Col([
+                    dcc.Graph(id='job-duration-graph')
+                ], width=12)
+            ], className='border mt-3')
+        ]),
+        dbc.Tab(label='Daily Job Count', tab_id='daily-job-count', children=[
+            dbc.Row([
+                dbc.Col([
+                    dcc.Graph(id='daily-job-count-graph')
+                ], width=12)
+            ], className='border mt-3')
+        ])
+    ]),
+    dcc.ConfirmDialog(
+        id='confirm-dialog',
+        message='Email sent successfully!',
+    ),
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
 # CSS styling for the date picker input to make it bold
@@ -243,7 +271,9 @@ app.index_string = '''
      Output('job-table-container', 'children'),
      Output('status-bar-graph', 'figure'),
      Output('failure-trend-graph', 'figure'),
-     Output('time-difference-graph', 'figure')],
+     Output('time-difference-graph', 'figure'),
+     Output('job-duration-graph', 'figure'),
+     Output('daily-job-count-graph', 'figure')],
     [Input('date-picker-table', 'date'),
      Input('job-name-dropdown', 'value'),
      Input('status-dropdown', 'value')]
@@ -256,9 +286,9 @@ def update_dashboard(selected_date, selected_job, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
-    df, df_30_days, df_6_months = fetch_data(selected_date)
+    df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -348,7 +378,16 @@ def update_dashboard(selected_date, selected_job, selected_status):
         print(f"Benchmark Update dataframe empty: {benchmark_update_df.empty}")
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
 
-    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff
+    # Calculate average job duration per day
+    df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate'])
+    avg_duration = df_job_duration.groupby('ProcessingDate')['DurationMinutes'].mean().reset_index()
+    fig_job_duration = px.line(avg_duration, x='ProcessingDate', y='DurationMinutes', title='Average Job Duration Over Time')
+
+    # Calculate daily job count
+    daily_job_count = df_job_duration.groupby('ProcessingDate').size().reset_index(name='JobCount')
+    fig_daily_job_count = px.bar(daily_job_count, x='ProcessingDate', y='JobCount', title='Daily Job Count')
+
+    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, fig_job_duration, fig_daily_job_count
 
 def run_dash_app(queue):
     print("Starting Dash app...")
@@ -461,7 +500,7 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
     print("Email sent with the dashboard image embedded.")
 
 @app.callback(
-    Output('confirm-dialog', 'submit_n_clicks'),
+    [Output('send-email-button', 'n_clicks'), Output('confirm-dialog', 'displayed')],
     [Input('send-email-button', 'n_clicks')],
     [State('date-picker-table', 'date')]
 )
@@ -485,9 +524,9 @@ def handle_send_email(n_clicks, selected_date):
         driver.quit()
         dash_process.terminate()
 
-        return 1  # Trigger the confirm dialog
+        return None, True  # Trigger the confirm dialog
 
-    return None
+    return None, False
 
 def main():
     driver, dash_process, queue = run_dashboard()
