@@ -617,7 +617,7 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
     Jr. Software Engineer<br>
     Pune, India<br>
     KEF<br>
-    Pratik_Bhongade@key.com</p>
+    Pratik_Bhongade@ky.com</p>
     '''
 
     attachment = mail.Attachments.Add(image_path)
