@@ -323,6 +323,18 @@ app.index_string = '''
 )
 def update_dashboard(selected_date, selected_job, selected_status):
     print(f"Selected date: {selected_date}")
+    
+    # Check if the selected date is today and current time is before 9 PM
+    now = datetime.now()
+    if selected_date == now.strftime('%Y-%m-%d') and now.hour < 21:
+        message = html.Div(
+            [
+                html.H4("Batch yet to start", className='text-center text-danger')
+            ]
+        )
+        empty_fig = px.bar()
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+
     if selected_date in bank_holidays or datetime.strptime(selected_date, '%Y-%m-%d').weekday() >= 5:
         message = html.Div(
             [
@@ -330,7 +342,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
     
