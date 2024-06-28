@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options as Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -199,7 +199,11 @@ app.layout = dbc.Container([
         dbc.Col([
             html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3")
         ], width=12, className='d-flex justify-content-center')
-    ], className='border mt-3')
+    ], className='border mt-3'),
+    dcc.ConfirmDialog(
+        id='confirm-dialog',
+        message='Email sent successfully!',
+    ),
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
 # CSS styling for the date picker input to make it bold
@@ -291,8 +295,8 @@ def update_dashboard(selected_date, selected_job, selected_status):
             y=status_counts['Status'],
             orientation='h',
             marker=dict(
-                color=status_counts['Status'].apply(lambda x: 'green' if x == 'Succeeded' else 'orange' if x == 'Succeeded with Exception' else 'red'),
-                line=dict(color='black', width=1)
+                color=status_counts['Status'].apply(lambda x: 'green' if x == 'Succeeded' else 'orange' if x == 'Succeeded with Exceptions' else 'red'),
+                line=dict(color='black', width=1)  # Keep the border
             )
         )
     ])
@@ -305,7 +309,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
         title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
         xaxis=dict(
             showgrid=True,
-            showline=True,
+            showline=False,
             linewidth=1,
             linecolor='black',
             mirror=True,
@@ -313,13 +317,14 @@ def update_dashboard(selected_date, selected_job, selected_status):
         ),
         yaxis=dict(
             showgrid=True,
-            showline=True,
+            showline=False,
             linewidth=1,
             linecolor='black',
             mirror=True,
-            gridcolor='lightgrey'
+            gridcolor='lightgrey',
         ),
-        font=dict(size=14)
+        font=dict(size=14),
+        bargap=0.4  # Adjust this value to reduce the height of the bars
     )
 
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate'])
@@ -456,7 +461,7 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
     print("Email sent with the dashboard image embedded.")
 
 @app.callback(
-    Output('send-email-button', 'n_clicks'),
+    [Output('send-email-button', 'n_clicks'), Output('confirm-dialog', 'displayed')],
     [Input('send-email-button', 'n_clicks')],
     [State('date-picker-table', 'date')]
 )
@@ -480,7 +485,9 @@ def handle_send_email(n_clicks, selected_date):
         driver.quit()
         dash_process.terminate()
 
-        return None
+        return None, True  # Trigger the confirm dialog
+
+    return None, False
 
 def main():
     driver, dash_process, queue = run_dashboard()
