@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options as Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -177,13 +177,13 @@ app.layout = dbc.Container([
     ], className='border mb-3'),
     dbc.Row([
         dbc.Col([
-            html.H4("Job Status Counts", className='text-left', style={'font-weight': 'bold', 'color': 'rgba(42, 63, 95, 1)'}),
+            html.Div(id='job-table-container')
         ], width=12)
-    ]),
+    ], className='border'),
     dbc.Row([
         dbc.Col([
-            dcc.Graph(id='status-bar-graph', style={'width': '100%', 'max-width': '1200px', 'margin': '0 auto'})
-        ], width=12, className='d-flex justify-content-center')
+            dcc.Graph(id='status-bar-graph')
+        ], width=12)
     ], className='border'),
     dbc.Row([
         dbc.Col([
@@ -199,58 +199,37 @@ app.layout = dbc.Container([
         dbc.Col([
             html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3")
         ], width=12, className='d-flex justify-content-center')
-    ], className='border mt-3'),
-    dbc.Modal(
-        [
-            dbc.ModalHeader("Email Status"),
-            dbc.ModalBody("Email sent successfully!"),
-            dbc.ModalFooter(
-                dbc.Button("Close", id="close", className="ml-auto")
-            ),
-        ],
-        id="modal",
-    )
+    ], className='border mt-3')
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
-# Customize the bar graph for Job Status Counts
-fig_status = go.Figure(data=[
-    go.Bar(
-        x=status_counts['Count'],
-        y=status_counts['Status'],
-        orientation='h',
-        marker=dict(
-            color=status_counts['Status'].apply(lambda x: 'green' if x == 'Succeeded' else 'orange' if x == 'Succeeded with Exception' else 'red'),
-            line=dict(color='Black', width=0.8)  # Add a slight border to the bars
-        )
-    )
-])
-fig_status.update_layout(
-    title='Job Status Counts',
-    xaxis_title='Count',
-    yaxis_title='Status',
-    template='plotly_white',
-    plot_bgcolor='rgba(229,236,246,1)',
-    paper_bgcolor='rgba(229,236,246,1)',  # Set the background color to match the plot background
-    title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
-    xaxis=dict(
-        showgrid=True,
-        showline=False,  # Remove the border line for x-axis
-        linewidth=0,
-        linecolor='rgba(0,0,0,0)',
-        mirror=False,
-        gridcolor='lightgrey'
-    ),
-    yaxis=dict(
-        showgrid=True,
-        showline=False,  # Remove the border line for y-axis
-        linewidth=0,
-        linecolor='rgba(0,0,0,0)',
-        mirror=False,
-        gridcolor='lightgrey'
-    ),
-    font=dict(size=14),
-    bargap=0.4  # Adjust this value to reduce the height of the bars
-)
+# CSS styling for the date picker input to make it bold
+app.css.append_css({
+    'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
+})
+app.index_string = '''
+<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+        <style>
+            .DateInput_input {
+                font-weight: bold;
+            }
+        </style>
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>
+'''
 
 # Callback to update the tables and dropdowns based on the selected date
 @app.callback(
@@ -313,7 +292,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             orientation='h',
             marker=dict(
                 color=status_counts['Status'].apply(lambda x: 'green' if x == 'Succeeded' else 'orange' if x == 'Succeeded with Exception' else 'red'),
-                line=dict(color='Black', width=0.8)  # Add a slight border to the bars
+                line=dict(color='Black', width=0.8)  # Adjusted border color and width
             )
         )
     ])
@@ -479,40 +458,31 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
     print("Email sent with the dashboard image embedded.")
 
 @app.callback(
-    Output("modal", "is_open"),
-    [Input("send-email-button", "n_clicks"), Input("close", "n_clicks")],
-    [State("modal", "is_open"), State('date-picker-table', 'date')]
+    Output('send-email-button', 'n_clicks'),
+    [Input('send-email-button', 'n_clicks')],
+    [State('date-picker-table', 'date')]
 )
-def toggle_modal(send_click, close_click, is_open, selected_date):
-    ctx = dash.callback_context
+def handle_send_email(n_clicks, selected_date):
+    if n_clicks is not None:
+        driver, dash_process, queue = run_dashboard()
 
-    if ctx.triggered:
-        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        if trigger_id == 'send-email-button' and send_click:
-            driver, dash_process, queue = run_dashboard()
+        # Capture the full page screenshot
+        image_path = r"C:\Aspire_Dashboard\dashboard.png"
+        os.makedirs(os.path.dirname(image_path), exist_ok=True)
+        capture_full_page_screenshot(driver, image_path)
 
-            # Capture the full page screenshot
-            image_path = r"C:\Aspire_Dashboard\dashboard.png"
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
-            capture_full_page_screenshot(driver, image_path)
+        # Get the last business day and benchmark end time
+        processing_date = selected_date
+        benchmark_end_time = df[df['JobName'] == '20. Benchmark Update']['EndTime'].max()
 
-            # Get the last business day and benchmark end time
-            processing_date = selected_date
-            benchmark_end_time = df[df['JobName'] == '20. Benchmark Update']['EndTime'].max()
+        # Send the email with the screenshot
+        send_email_with_screenshot(image_path, processing_date, benchmark_end_time)
 
-            # Send the email with the screenshot
-            send_email_with_screenshot(image_path, processing_date, benchmark_end_time)
+        # Close the browser and stop the Dash app
+        driver.quit()
+        dash_process.terminate()
 
-            # Close the browser and stop the Dash app
-            driver.quit()
-            dash_process.terminate()
-
-            return not is_open
-
-        elif trigger_id == 'close' and close_click:
-            return not is_open
-
-    return is_open
+        return None
 
 def main():
     driver, dash_process, queue = run_dashboard()
