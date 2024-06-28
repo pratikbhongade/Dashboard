@@ -62,7 +62,7 @@ default_date = get_last_business_day().strftime('%Y-%m-%d')
 def fetch_data(selected_date):
     conn_str = (
         r'DRIVER={SQL Server};'
-        r'SERVER=SDC01ASRSQTD01\TSQLINT0;'
+        r'SERVER=SDC01ASRSQPD01S\PSQLINST01;'
         r'DATABASE=ASPIRE;'
         r'Trusted_Connection=yes;'
     )
@@ -324,9 +324,9 @@ app.index_string = '''
 def update_dashboard(selected_date, selected_job, selected_status):
     print(f"Selected date: {selected_date}")
     
-    # Check if the selected date is today and current time is before 9 PM
+    # Check if the selected date is today and current time is before 9 PM, or if the selected date is in the future
     now = datetime.now()
-    if selected_date == now.strftime('%Y-%m-%d') and now.hour < 21:
+    if (selected_date == now.strftime('%Y-%m-%d') and now.hour < 21) or datetime.strptime(selected_date, '%Y-%m-%d') > now:
         message = html.Div(
             [
                 html.H4("Batch yet to start", className='text-center text-danger')
