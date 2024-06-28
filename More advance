@@ -134,7 +134,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px'), width='auto'),
-        dbc.Col(html.H1("ASPIRE DASHBOARD", className='text-center mb-4', style={'font-weight': 'bold', 'color': '#2A3F5F'}), width=True, className='d-flex justify-content-center align-items-center'),
+        dbc.Col(html.H1("ASPIRE DASHBOARD", className='text-center mb-4', style={'font-weight': 'bold', 'color': '#2A3F5F', 'border-bottom': '1px solid #2A3F5F'}), width=True, className='d-flex justify-content-center align-items-center'),
         dbc.Col([
             html.Div("Pick a date 📆", className='text-center mb-2', style={'font-weight': 'bold'}),
             dcc.DatePickerSingle(
@@ -198,7 +198,7 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col([
             html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3")
-        ], width=12, className='d-flex justify-content-end')
+        ], width=12, className='d-flex justify-content-center')
     ], className='border mt-3')
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
@@ -292,7 +292,8 @@ def update_dashboard(selected_date, selected_job, selected_status):
             orientation='h',
             marker=dict(
                 color=status_counts['Status'].apply(lambda x: 'green' if x == 'Succeeded' else 'orange' if x == 'Succeeded with Exception' else 'red'),
-                line=dict(color='black', width=1)
+                line=dict(color='black', width=1),
+                width=0.6  # Adjust this value to decrease the height of the bars
             )
         )
     ])
@@ -302,7 +303,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
         yaxis_title='Status',
         template='plotly_white',
         plot_bgcolor='rgba(229,236,246,1)',
-        title_font=dict(size=24, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
+        title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
         xaxis=dict(
             showgrid=True,
             showline=True,
