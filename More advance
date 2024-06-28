@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -197,13 +197,13 @@ app.layout = dbc.Container([
     ], className='border'),
     dbc.Row([
         dbc.Col([
-            html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3")
+            dcc.ConfirmDialogProvider(
+                children=html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3"),
+                id='confirm-dialog',
+                message='Email sent successfully!'
+            )
         ], width=12, className='d-flex justify-content-center')
-    ], className='border mt-3'),
-    dcc.ConfirmDialog(
-        id='confirm-dialog',
-        message='Email sent successfully!',
-    ),
+    ], className='border mt-3')
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
 # CSS styling for the date picker input to make it bold
@@ -461,7 +461,7 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
     print("Email sent with the dashboard image embedded.")
 
 @app.callback(
-    [Output('send-email-button', 'n_clicks'), Output('confirm-dialog', 'displayed')],
+    Output('confirm-dialog', 'submit_n_clicks'),
     [Input('send-email-button', 'n_clicks')],
     [State('date-picker-table', 'date')]
 )
@@ -485,9 +485,9 @@ def handle_send_email(n_clicks, selected_date):
         driver.quit()
         dash_process.terminate()
 
-        return None, True  # Trigger the confirm dialog
+        return 1  # Trigger the confirm dialog
 
-    return None, False
+    return None
 
 def main():
     driver, dash_process, queue = run_dashboard()
