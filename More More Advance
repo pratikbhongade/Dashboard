@@ -141,7 +141,7 @@ def fetch_data(selected_date):
 df, df_30_days, df_6_months, df_job_duration = fetch_data(default_date)
 
 # Initialize the Dash app with Bootstrap CSS
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.themes.DARKLY])
 
 # Layout of the dashboard
 app.layout = dbc.Container([
@@ -159,7 +159,7 @@ app.layout = dbc.Container([
             )
         ], width='auto', className='d-flex justify-content-end align-items-center')
     ], className='border mb-3 align-items-center'),
-    dbc.Tabs([
+    dbc.Tabs(id="tabs", children=[
         dbc.Tab(label='Main Dashboard', tab_id='main-dashboard', children=[
             dbc.Row([
                 dbc.Col([
@@ -266,6 +266,11 @@ app.layout = dbc.Container([
             ], className='border mt-3')
         ])
     ]),
+    dbc.Row([
+        dbc.Col([
+            dbc.Switch(id='theme-switch', label='Dark Mode', value=True, className='mb-4 d-flex justify-content-end align-items-center')
+        ], width='auto', className='d-flex justify-content-end align-items-center')
+    ]),
     dcc.ConfirmDialog(
         id='confirm-dialog',
         message='Email sent successfully!',
@@ -300,6 +305,19 @@ app.index_string = '''
     </body>
 </html>
 '''
+
+# Callback to update the theme
+@app.callback(
+    Output('tabs', 'className'),
+    [Input('theme-switch', 'value')]
+)
+def update_theme(dark_mode):
+    if dark_mode:
+        app.css.config.serve_locally = True
+        return 'dark-theme'
+    else:
+        app.css.config.serve_locally = False
+        return 'light-theme'
 
 # Callback to update the tables and dropdowns based on the selected date
 @app.callback(
