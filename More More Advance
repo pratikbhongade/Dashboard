@@ -161,17 +161,17 @@ app.layout = dbc.Container([
     ], className='border mb-3 align-items-center'),
     dcc.Markdown(f'''
     <style>
-        .DatePickerSingle .DateInput_input, .DateInput_input {
+        .DatePickerSingle .DateInput_input, .DateInput_input {{
             font-weight: bold;
-        }
-        .DatePickerSingle .CalendarDay__highlighted_calendar, .CalendarDay__highlighted_calendar {
+        }}
+        .DatePickerSingle .CalendarDay__highlighted_calendar, .CalendarDay__highlighted_calendar {{
             background: #2196F3;
             color: white;
-        }
-        .DatePickerSingle .CalendarDay__highlighted_calendar:hover, .CalendarDay__highlighted_calendar:hover {
+        }}
+        .DatePickerSingle .CalendarDay__highlighted_calendar:hover, .CalendarDay__highlighted_calendar:hover {{
             background: #1976D2;
             color: white;
-        }
+        }}
     </style>
     '''),
     dbc.Tabs([
@@ -617,7 +617,7 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
     Jr. Software Engineer<br>
     Pune, India<br>
     KEF<br>
-    Pratik_Bhongade@ky.com</p>
+    Pratik_Bhongade@key.com</p>
     '''
 
     attachment = mail.Attachments.Add(image_path)
