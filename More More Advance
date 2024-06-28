@@ -145,19 +145,6 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 # Layout of the dashboard
 app.layout = dbc.Container([
-    html.Style('''
-        .DatePickerSingle .DateInput_input, .DateInput_input {
-            font-weight: bold;
-        }
-        .DatePickerSingle .CalendarDay__highlighted_calendar, .CalendarDay__highlighted_calendar {
-            background: #2196F3;
-            color: white;
-        }
-        .DatePickerSingle .CalendarDay__highlighted_calendar:hover, .CalendarDay__highlighted_calendar:hover {
-            background: #1976D2;
-            color: white;
-        }
-    '''),
     dbc.Row([
         dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px'), width='auto'),
         dbc.Col(html.H1("ASPIRE DASHBOARD", className='text-center mb-4', style={'font-weight': 'bold', 'color': '#2A3F5F', 'border-bottom': '1px solid #2A3F5F'}), width=True, className='d-flex justify-content-center align-items-center'),
@@ -286,9 +273,38 @@ app.layout = dbc.Container([
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
 # CSS styling for the date picker input to make it bold
-app.css.append_css({
-    'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
-})
+app.index_string = '''
+<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+        <style>
+            .DatePickerSingle .DateInput_input, .DateInput_input {
+                font-weight: bold;
+            }
+            .DatePickerSingle .CalendarDay__highlighted_calendar, .CalendarDay__highlighted_calendar {
+                background: #2196F3;
+                color: white;
+            }
+            .DatePickerSingle .CalendarDay__highlighted_calendar:hover, .CalendarDay__highlighted_calendar:hover {
+                background: #1976D2;
+                color: white;
+            }
+        </style>
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>
+'''
 
 # Callback to update the tables and dropdowns based on the selected date
 @app.callback(
