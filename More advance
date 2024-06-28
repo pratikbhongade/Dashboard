@@ -468,44 +468,39 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
     print("Email sent with the dashboard image embedded.")
 
 @app.callback(
-    [Output('send-email-button', 'n_clicks'),
-     Output('modal', 'is_open')],
-    [Input('send-email-button', 'n_clicks')],
-    [State('date-picker-table', 'date'),
-     State('modal', 'is_open')]
-)
-def handle_send_email(n_clicks, selected_date, is_open):
-    if n_clicks is not None:
-        driver, dash_process, queue = run_dashboard()
-
-        # Capture the full page screenshot
-        image_path = r"C:\Aspire_Dashboard\dashboard.png"
-        os.makedirs(os.path.dirname(image_path), exist_ok=True)
-        capture_full_page_screenshot(driver, image_path)
-
-        # Get the last business day and benchmark end time
-        processing_date = selected_date
-        benchmark_end_time = df[df['JobName'] == '20. Benchmark Update']['EndTime'].max()
-
-        # Send the email with the screenshot
-        send_email_with_screenshot(image_path, processing_date, benchmark_end_time)
-
-        # Close the browser and stop the Dash app
-        driver.quit()
-        dash_process.terminate()
-
-        return None, not is_open
-
-    return None, is_open
-
-@app.callback(
     Output("modal", "is_open"),
-    [Input("close", "n_clicks")],
-    [State("modal", "is_open")]
+    [Input("send-email-button", "n_clicks"), Input("close", "n_clicks")],
+    [State("modal", "is_open"), State('date-picker-table', 'date')]
 )
-def toggle_modal(n_clicks, is_open):
-    if n_clicks:
-        return not is_open
+def toggle_modal(send_click, close_click, is_open, selected_date):
+    ctx = dash.callback_context
+
+    if ctx.triggered:
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        if trigger_id == 'send-email-button' and send_click:
+            driver, dash_process, queue = run_dashboard()
+
+            # Capture the full page screenshot
+            image_path = r"C:\Aspire_Dashboard\dashboard.png"
+            os.makedirs(os.path.dirname(image_path), exist_ok=True)
+            capture_full_page_screenshot(driver, image_path)
+
+            # Get the last business day and benchmark end time
+            processing_date = selected_date
+            benchmark_end_time = df[df['JobName'] == '20. Benchmark Update']['EndTime'].max()
+
+            # Send the email with the screenshot
+            send_email_with_screenshot(image_path, processing_date, benchmark_end_time)
+
+            # Close the browser and stop the Dash app
+            driver.quit()
+            dash_process.terminate()
+
+            return not is_open
+
+        elif trigger_id == 'close' and close_click:
+            return not is_open
+
     return is_open
 
 def main():
