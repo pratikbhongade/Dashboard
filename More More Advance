@@ -223,13 +223,6 @@ app.layout = dbc.Container([
                 ], width=12)
             ], className='border mt-3')
         ]),
-        dbc.Tab(label='Daily Job Count', tab_id='daily-job-count', children=[
-            dbc.Row([
-                dbc.Col([
-                    dcc.Graph(id='daily-job-count-graph')
-                ], width=12)
-            ], className='border mt-3')
-        ]),
         dbc.Tab(label='Job Failure Rate', tab_id='job-failure-rate', children=[
             dbc.Row([
                 dbc.Col([
@@ -318,7 +311,6 @@ app.index_string = '''
      Output('failure-trend-graph', 'figure'),
      Output('time-difference-graph', 'figure'),
      Output('job-duration-graph', 'figure'),
-     Output('daily-job-count-graph', 'figure'),
      Output('job-failure-rate-graph', 'figure'),
      Output('performance-metrics-graph', 'figure'),
      Output('heatmap-job-runs-graph', 'figure'),
@@ -337,7 +329,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
 
@@ -409,6 +401,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     )
 
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate'])
+    df_30_days['DurationMinutes'] = (df_30_days['EndTime'] - df_30_days['StartTime']).dt.total_seconds() / 60.0
     df_failed = df_30_days[df_30_days['Status'] == 'Failed']
     failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
@@ -433,10 +426,6 @@ def update_dashboard(selected_date, selected_job, selected_status):
     df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate'])
     avg_duration = df_job_duration.groupby(['ProcessingDate', 'JobName'])['DurationMinutes'].mean().reset_index()
     fig_job_duration = px.line(avg_duration, x='ProcessingDate', y='DurationMinutes', color='JobName', title='Average Job Duration Over Time')
-
-    # Calculate daily job count
-    daily_job_count = df_job_duration.groupby('ProcessingDate').size().reset_index(name='JobCount')
-    fig_daily_job_count = px.bar(daily_job_count, x='ProcessingDate', y='JobCount', title='Daily Job Count')
 
     # Calculate job failure rate
     df_30_days['StatusBinary'] = df_30_days['Status'].apply(lambda x: 1 if x == 'Failed' else 0)
@@ -473,7 +462,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, fig_job_duration, fig_daily_job_count, fig_failure_rate, fig_performance_metrics, fig_heatmap, fig_anomaly_detection, fig_correlation, fig_recovery
+    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, fig_job_duration, fig_failure_rate, fig_performance_metrics, fig_heatmap, fig_anomaly_detection, fig_correlation, fig_recovery
 
 def run_dash_app(queue):
     print("Starting Dash app...")
