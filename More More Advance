@@ -322,9 +322,6 @@ app.index_string = '''
      Input('status-dropdown', 'value')]
 )
 def update_dashboard(selected_date, selected_job, selected_status):
-    print(f"Selected date: {selected_date}")
-    
-    # Check if the selected date is today and current time is before 9 PM, or if the selected date is in the future
     now = datetime.now()
     if (selected_date == now.strftime('%Y-%m-%d') and now.hour < 21) or datetime.strptime(selected_date, '%Y-%m-%d') > now:
         message = html.Div(
@@ -345,11 +342,6 @@ def update_dashboard(selected_date, selected_job, selected_status):
         return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
-    
-    print(f"Dataframe df empty: {df.empty}")
-    print(f"Dataframe df_30_days empty: {df_30_days.empty}")
-    print(f"Dataframe df_6_months empty: {df_6_months.empty}")
-    print(f"Dataframe df_job_duration empty: {df_job_duration.empty}")
 
     if df.empty:
         message = html.Div(
@@ -437,16 +429,12 @@ def update_dashboard(selected_date, selected_job, selected_status):
     triad_df = df_6_months[df_6_months['JobName'] == '18. TRIAD']
     benchmark_update_df = df_6_months[df_6_months['JobName'] == '20. Benchmark Update']
 
-    # Ensure there is data to merge
     if not triad_df.empty and not benchmark_update_df.empty:
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
         merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
         fig_time_diff = px.line(merged_df, x='ProcessingDate', y='TimeDifference', title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 6 Months')
     else:
-        print("One or both of the dataframes are empty:")
-        print(f"TRIAD dataframe empty: {triad_df.empty}")
-        print(f"Benchmark Update dataframe empty: {benchmark_update_df.empty}")
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
 
     # Calculate average job duration per job
@@ -492,9 +480,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, fig_job_duration, fig_failure_rate, fig_performance_metrics, fig_heatmap, fig_anomaly_detection, fig_correlation, fig_recovery
 
 def run_dash_app(queue):
-    print("Starting Dash app...")
     app.run_server(debug=True, port=8050, use_reloader=False)
-    print("Dash app stopped.")
     queue.put("Dash app stopped")
 
 def run_dashboard():
@@ -514,17 +500,14 @@ def run_dashboard():
     chrome_options.add_argument("--window-size=1920,1080")  # Increase window size for full capture
 
     chrome_driver_path = "C:\\chromedriver_win64\\chromedriver.exe"
-    print(f"Using ChromeDriver from: {chrome_driver_path}")
 
     webdriver_service = ChromeService(executable_path=chrome_driver_path)
     try:
         driver = webdriver.Chrome(service=webdriver_service, options=chrome_options)
     except Exception as e:
-        print(f"Error initializing Chrome WebDriver: {e}")
         raise
 
     # Open the Dash app in the browser
-    print("Opening Dash app in Chrome browser...")
     driver.get("http://127.0.0.1:8050/")
     time.sleep(5)  # Give some time to ensure the page loads
 
@@ -598,8 +581,6 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
     attachment.PropertyAccessor.SetProperty("http://schemas.microsoft.com/mapi/proptag/0x3712001F", image_cid)
 
     mail.Send()
-
-    print("Email sent with the dashboard image embedded.")
 
 @app.callback(
     [Output('send-email-button', 'n_clicks'), Output('confirm-dialog', 'displayed')],
