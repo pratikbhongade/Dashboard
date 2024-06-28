@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -323,23 +323,31 @@ app.index_string = '''
 )
 def update_dashboard(selected_date, selected_job, selected_status):
     now = datetime.now()
-    if (selected_date == now.strftime('%Y-%m-%d') and now.hour < 21) or datetime.strptime(selected_date, '%Y-%m-%d') > now:
-        message = html.Div(
-            [
-                html.H4("Batch yet to start", className='text-center text-danger')
-            ]
-        )
+    selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
+    
+    # Check if the selected date is a bank holiday, weekend, future date, or before 9 PM today
+    if selected_date in bank_holidays or selected_date_obj.weekday() >= 5 or selected_date_obj > now or (selected_date == now.strftime('%Y-%m-%d') and now.hour < 21):
+        if selected_date in bank_holidays or selected_date_obj.weekday() >= 5:
+            message = html.Div(
+                [
+                    html.H4("No data available due to holiday", className='text-center text-danger')
+                ]
+            )
+        elif selected_date_obj > now:
+            message = html.Div(
+                [
+                    html.H4("Batch yet to start", className='text-center text-danger')
+                ]
+            )
+        else:
+            message = html.Div(
+                [
+                    html.H4("Batch yet to start", className='text-center text-danger')
+                ]
+            )
+
         empty_fig = px.bar()
         return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
-
-    if selected_date in bank_holidays or datetime.strptime(selected_date, '%Y-%m-%d').weekday() >= 5:
-        message = html.Div(
-            [
-                html.H4("No data available due to holiday", className='text-center text-danger')
-            ]
-        )
-        empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
 
