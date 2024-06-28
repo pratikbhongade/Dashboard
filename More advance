@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -292,7 +292,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             orientation='h',
             marker=dict(
                 color=status_counts['Status'].apply(lambda x: 'green' if x == 'Succeeded' else 'orange' if x == 'Succeeded with Exception' else 'red'),
-                line=dict(color='Black', width=0.8)  # Adjusted border color and width
+                line=dict(color='black', width=1)
             )
         )
     ])
@@ -302,26 +302,24 @@ def update_dashboard(selected_date, selected_job, selected_status):
         yaxis_title='Status',
         template='plotly_white',
         plot_bgcolor='rgba(229,236,246,1)',
-        paper_bgcolor='rgba(229,236,246,1)',  # Set the background color to match the plot background
         title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
         xaxis=dict(
             showgrid=True,
-            showline=False,  # Remove the border line for x-axis
-            linewidth=0,
-            linecolor='rgba(0,0,0,0)',
-            mirror=False,
+            showline=True,
+            linewidth=1,
+            linecolor='black',
+            mirror=True,
             gridcolor='lightgrey'
         ),
         yaxis=dict(
             showgrid=True,
-            showline=False,  # Remove the border line for y-axis
-            linewidth=0,
-            linecolor='rgba(0,0,0,0)',
-            mirror=False,
+            showline=True,
+            linewidth=1,
+            linecolor='black',
+            mirror=True,
             gridcolor='lightgrey'
         ),
-        font=dict(size=14),
-        bargap=0.4  # Adjust this value to reduce the height of the bars
+        font=dict(size=14)
     )
 
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate'])
