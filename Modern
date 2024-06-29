@@ -141,7 +141,7 @@ def fetch_data(selected_date):
 df, df_30_days, df_6_months, df_job_duration = fetch_data(default_date)
 
 # Initialize the Dash app with Bootstrap CSS
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 # Layout of the dashboard
 app.layout = dbc.Container([
@@ -568,12 +568,15 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
         image_data = f.read()
         image_cid = 'dashboard_image'
     
+    # Extract the time part in the desired format
+    benchmark_end_time_formatted = benchmark_end_time.strftime('%I:%M %p')
+    
     mail.HTMLBody = f'''
     <p>Hi All,</p>
     <p>Please find the status of Aspire Nightly Batch - <strong>{processing_date}</strong></p>
     <p><strong>Highlight:</strong></p>
     <ul>
-        <li>Aspire Online Availability at <strong>{benchmark_end_time}</strong></li>
+        <li>Aspire Online Availability at <strong>{benchmark_end_time_formatted}</strong></li>
     </ul>
     <p><u><strong>ASPIRE DASHBOARD</strong></u>:</p>
     <img src="cid:{image_cid}" width="800">
