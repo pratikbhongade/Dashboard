@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -48,6 +48,7 @@ default_date = get_last_business_day().strftime('%Y-%m-%d')
 
 # Function to fetch data
 def fetch_data(selected_date):
+    print(f"Fetching data for the selected date: {selected_date}")
     conn_str = (
         r'DRIVER={SQL Server};'
         r'SERVER=SDC01ASRSQPD01S\PSQLINST01;'
@@ -79,6 +80,7 @@ def fetch_data(selected_date):
     ORDER BY StartTime ASC
     """
     df = pd.read_sql(query, conn)
+    print(f"Fetched {len(df)} rows for the selected date: {selected_date}")
 
     query_30_days = """
     SELECT 
@@ -94,6 +96,7 @@ def fetch_data(selected_date):
     WHERE JSH.StartTime >= DATEADD(day, -30, GETDATE())
     """
     df_30_days = pd.read_sql(query_30_days, conn)
+    print(f"Fetched {len(df_30_days)} rows for the last 30 days")
 
     query_6_months = """
     SELECT 
@@ -108,6 +111,7 @@ def fetch_data(selected_date):
     ORDER BY ProcessingDate, JSJ.Name
     """
     df_6_months = pd.read_sql(query_6_months, conn)
+    print(f"Fetched {len(df_6_months)} rows for the last 6 months")
 
     query_job_duration = """
     SELECT 
@@ -120,6 +124,7 @@ def fetch_data(selected_date):
     WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
     """
     df_job_duration = pd.read_sql(query_job_duration, conn)
+    print(f"Fetched {len(df_job_duration)} rows for job duration")
 
     conn.close()
 
@@ -310,6 +315,7 @@ app.index_string = '''
      Input('status-dropdown', 'value')]
 )
 def update_dashboard(selected_date, selected_job, selected_status):
+    print(f"Updating dashboard for the selected date: {selected_date}")
     now = datetime.now()
     selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
     
@@ -340,6 +346,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
 
     if df.empty:
+        print(f"No data available for the selected date: {selected_date}")
         message = html.Div(
             [
                 html.H4("No Data Available", className='text-center text-danger')
@@ -431,6 +438,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
         fig_time_diff = px.line(merged_df, x='ProcessingDate', y='TimeDifference', title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 6 Months')
     else:
+        print("No data available for TRIAD or Benchmark Update jobs.")
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
 
     # Calculate average job duration per job
