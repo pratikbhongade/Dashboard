@@ -25,6 +25,18 @@ logo_path = 'C:\\Aspire_Dashboard\\Aspire.png'
 with open(logo_path, 'rb') as f:
     logo_base64 = base64.b64encode(f.read()).decode('ascii')
 
+# List of bank holidays
+bank_holidays = [
+    "2024-01-01",  # New Year's Day
+    "2024-01-15",  # Martin Luther King, Jr. Day
+    "2024-05-27",  # Memorial Day
+    "2024-06-19",  # Juneteenth National Independence Day
+    "2024-07-04",  # Independence Day
+    "2024-09-02",  # Labor Day
+    "2024-11-28",  # Thanksgiving Day
+    "2024-12-25"   # Christmas
+]
+
 # Function to get the last business day
 def get_last_business_day():
     today = datetime.today()
@@ -38,7 +50,7 @@ def get_last_business_day():
     # Ensure the date is within the current month
     if last_business_day.month != today.month:
         last_business_day = today.replace(day=1) - timedelta(days=1)
-        while last_business_day.weekday() >= 5:  # Skip weekends
+        while last_business_day.weekday() >= 5 or last_business_day.strftime('%Y-%m-%d') in bank_holidays:  # Skip weekends and holidays
             last_business_day -= timedelta(days=1)
     
     return last_business_day
@@ -48,7 +60,6 @@ default_date = get_last_business_day().strftime('%Y-%m-%d')
 
 # Function to fetch data
 def fetch_data(selected_date):
-    print(f"Fetching data for the selected date: {selected_date}")
     conn_str = (
         r'DRIVER={SQL Server};'
         r'SERVER=SDC01ASRSQPD01S\PSQLINST01;'
@@ -80,7 +91,6 @@ def fetch_data(selected_date):
     ORDER BY StartTime ASC
     """
     df = pd.read_sql(query, conn)
-    print(f"Fetched {len(df)} rows for the selected date: {selected_date}")
 
     query_30_days = """
     SELECT 
@@ -96,7 +106,6 @@ def fetch_data(selected_date):
     WHERE JSH.StartTime >= DATEADD(day, -30, GETDATE())
     """
     df_30_days = pd.read_sql(query_30_days, conn)
-    print(f"Fetched {len(df_30_days)} rows for the last 30 days")
 
     query_6_months = """
     SELECT 
@@ -111,7 +120,6 @@ def fetch_data(selected_date):
     ORDER BY ProcessingDate, JSJ.Name
     """
     df_6_months = pd.read_sql(query_6_months, conn)
-    print(f"Fetched {len(df_6_months)} rows for the last 6 months")
 
     query_job_duration = """
     SELECT 
@@ -124,7 +132,6 @@ def fetch_data(selected_date):
     WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
     """
     df_job_duration = pd.read_sql(query_job_duration, conn)
-    print(f"Fetched {len(df_job_duration)} rows for job duration")
 
     conn.close()
 
@@ -230,10 +237,24 @@ app.layout = dbc.Container([
                 ], width=12)
             ], className='border mt-3')
         ]),
+        dbc.Tab(label='Heatmap of Job Runs', tab_id='heatmap-job-runs', children=[
+            dbc.Row([
+                dbc.Col([
+                    dcc.Graph(id='heatmap-job-runs-graph')
+                ], width=12)
+            ], className='border mt-3')
+        ]),
         dbc.Tab(label='Anomaly Detection', tab_id='anomaly-detection', children=[
             dbc.Row([
                 dbc.Col([
                     dcc.Graph(id='anomaly-detection-graph')
+                ], width=12)
+            ], className='border mt-3')
+        ]),
+        dbc.Tab(label='Correlation Analysis', tab_id='correlation-analysis', children=[
+            dbc.Row([
+                dbc.Col([
+                    dcc.Graph(id='correlation-analysis-graph')
                 ], width=12)
             ], className='border mt-3')
         ]),
@@ -292,23 +313,24 @@ app.index_string = '''
      Output('job-duration-graph', 'figure'),
      Output('job-failure-rate-graph', 'figure'),
      Output('performance-metrics-graph', 'figure'),
+     Output('heatmap-job-runs-graph', 'figure'),
      Output('anomaly-detection-graph', 'figure'),
+     Output('correlation-analysis-graph', 'figure'),
      Output('time-to-recovery-graph', 'figure')],
     [Input('date-picker-table', 'date'),
      Input('job-name-dropdown', 'value'),
      Input('status-dropdown', 'value')]
 )
 def update_dashboard(selected_date, selected_job, selected_status):
-    print(f"Updating dashboard for the selected date: {selected_date}")
     now = datetime.now()
     selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
     
-    # Check if the selected date is a weekend, future date, or before 9 PM today
-    if selected_date_obj.weekday() >= 5 or selected_date_obj > now or (selected_date == now.strftime('%Y-%m-%d') and now.hour < 21):
-        if selected_date_obj.weekday() >= 5:
+    # Check if the selected date is a bank holiday, weekend, future date, or before 9 PM today
+    if selected_date in bank_holidays or selected_date_obj.weekday() >= 5 or selected_date_obj > now or (selected_date == now.strftime('%Y-%m-%d') and now.hour < 21):
+        if selected_date in bank_holidays or selected_date_obj.weekday() >= 5:
             message = html.Div(
                 [
-                    html.H4("No data available due to weekend", className='text-center text-danger')
+                    html.H4("No data available due to holiday", className='text-center text-danger')
                 ]
             )
         elif selected_date_obj > now:
@@ -325,19 +347,18 @@ def update_dashboard(selected_date, selected_job, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
 
     if df.empty:
-        print(f"No data available for the selected date: {selected_date}")
         message = html.Div(
             [
                 html.H4("No Data Available", className='text-center text-danger')
             ]
         )
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -422,7 +443,6 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
         fig_time_diff = px.line(merged_df, x='ProcessingDate', y='TimeDifference', title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 6 Months')
     else:
-        print("No data available for TRIAD or Benchmark Update jobs.")
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
 
     # Calculate average job duration per job
@@ -444,17 +464,28 @@ def update_dashboard(selected_date, selected_job, selected_status):
     ).reset_index()
     fig_performance_metrics = px.box(performance_metrics.melt(id_vars='JobName'), x='JobName', y='value', color='variable', title='Performance Metrics Comparison')
 
+    # Heatmap of job runs
+    df_30_days['Hour'] = df_30_days['StartTime'].dt.hour
+    df_30_days['Weekday'] = df_30_days['StartTime'].dt.weekday
+    heatmap_data = df_30_days.groupby(['Weekday', 'Hour']).size().reset_index(name='JobCount')
+    heatmap_data_pivot = heatmap_data.pivot('Weekday', 'Hour', 'JobCount').fillna(0)
+    fig_heatmap = px.imshow(heatmap_data_pivot, title='Heatmap of Job Runs')
+
     # Anomaly detection (using z-score)
     df_30_days['DurationZScore'] = (df_30_days['DurationMinutes'] - df_30_days['DurationMinutes'].mean()) / df_30_days['DurationMinutes'].std()
     anomalies = df_30_days[df_30_days['DurationZScore'].abs() > 2]
     fig_anomaly_detection = px.scatter(anomalies, x='StartTime', y='DurationMinutes', color='JobName', title='Anomaly Detection in Job Durations')
+
+    # Correlation analysis
+    correlation_data = df_30_days[['DurationMinutes', 'StatusBinary']]
+    fig_correlation = px.scatter_matrix(correlation_data, title='Correlation Analysis of Job Metrics')
 
     # Time to recovery from failures
     df_30_days['RecoveryTime'] = df_30_days.groupby('JobName')['EndTime'].diff().dt.total_seconds() / 3600
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, fig_job_duration, fig_failure_rate, fig_performance_metrics, fig_anomaly_detection, fig_recovery
+    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, fig_job_duration, fig_failure_rate, fig_performance_metrics, fig_heatmap, fig_anomaly_detection, fig_correlation, fig_recovery
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
