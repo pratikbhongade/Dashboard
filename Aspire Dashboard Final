@@ -237,24 +237,10 @@ app.layout = dbc.Container([
                 ], width=12)
             ], className='border mt-3')
         ]),
-        dbc.Tab(label='Heatmap of Job Runs', tab_id='heatmap-job-runs', children=[
-            dbc.Row([
-                dbc.Col([
-                    dcc.Graph(id='heatmap-job-runs-graph')
-                ], width=12)
-            ], className='border mt-3')
-        ]),
         dbc.Tab(label='Anomaly Detection', tab_id='anomaly-detection', children=[
             dbc.Row([
                 dbc.Col([
                     dcc.Graph(id='anomaly-detection-graph')
-                ], width=12)
-            ], className='border mt-3')
-        ]),
-        dbc.Tab(label='Correlation Analysis', tab_id='correlation-analysis', children=[
-            dbc.Row([
-                dbc.Col([
-                    dcc.Graph(id='correlation-analysis-graph')
                 ], width=12)
             ], className='border mt-3')
         ]),
@@ -313,9 +299,7 @@ app.index_string = '''
      Output('job-duration-graph', 'figure'),
      Output('job-failure-rate-graph', 'figure'),
      Output('performance-metrics-graph', 'figure'),
-     Output('heatmap-job-runs-graph', 'figure'),
      Output('anomaly-detection-graph', 'figure'),
-     Output('correlation-analysis-graph', 'figure'),
      Output('time-to-recovery-graph', 'figure')],
     [Input('date-picker-table', 'date'),
      Input('job-name-dropdown', 'value'),
@@ -347,7 +331,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
 
@@ -358,7 +342,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -464,28 +448,17 @@ def update_dashboard(selected_date, selected_job, selected_status):
     ).reset_index()
     fig_performance_metrics = px.box(performance_metrics.melt(id_vars='JobName'), x='JobName', y='value', color='variable', title='Performance Metrics Comparison')
 
-    # Heatmap of job runs
-    df_30_days['Hour'] = df_30_days['StartTime'].dt.hour
-    df_30_days['Weekday'] = df_30_days['StartTime'].dt.weekday
-    heatmap_data = df_30_days.groupby(['Weekday', 'Hour']).size().reset_index(name='JobCount')
-    heatmap_data_pivot = heatmap_data.pivot('Weekday', 'Hour', 'JobCount').fillna(0)
-    fig_heatmap = px.imshow(heatmap_data_pivot, title='Heatmap of Job Runs')
-
     # Anomaly detection (using z-score)
     df_30_days['DurationZScore'] = (df_30_days['DurationMinutes'] - df_30_days['DurationMinutes'].mean()) / df_30_days['DurationMinutes'].std()
     anomalies = df_30_days[df_30_days['DurationZScore'].abs() > 2]
     fig_anomaly_detection = px.scatter(anomalies, x='StartTime', y='DurationMinutes', color='JobName', title='Anomaly Detection in Job Durations')
-
-    # Correlation analysis
-    correlation_data = df_30_days[['DurationMinutes', 'StatusBinary']]
-    fig_correlation = px.scatter_matrix(correlation_data, title='Correlation Analysis of Job Metrics')
 
     # Time to recovery from failures
     df_30_days['RecoveryTime'] = df_30_days.groupby('JobName')['EndTime'].diff().dt.total_seconds() / 3600
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, fig_job_duration, fig_failure_rate, fig_performance_metrics, fig_heatmap, fig_anomaly_detection, fig_correlation, fig_recovery
+    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, fig_job_duration, fig_failure_rate, fig_performance_metrics, fig_anomaly_detection, fig_recovery
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
