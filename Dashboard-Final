@@ -404,12 +404,13 @@ def update_dashboard(selected_date, selected_job, selected_status):
     benchmark_update_df = df_1_month[df_1_month['JobName'] == '20. Benchmark Update']
 
     if not triad_df.empty and not benchmark_update_df.empty:
-        merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
-        merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
+        triad_df['JobName'] = 'TRIAD'
+        benchmark_update_df['JobName'] = 'Benchmark Update'
+        merged_df = pd.concat([triad_df, benchmark_update_df])
 
         # Last business day time difference
-        last_business_day_time_diff = merged_df[merged_df['ProcessingDate'] == selected_date]['TimeDifference'].values
-        last_business_day_text = f"Last Business Day Time Difference: {last_business_day_time_diff[0]:.2f} hours" if last_business_day_time_diff else ""
+        last_business_day_time_diff = (benchmark_update_df[benchmark_update_df['ProcessingDate'] == selected_date]['EndTime'].values[0] - triad_df[triad_df['ProcessingDate'] == selected_date]['EndTime'].values[0]).total_seconds() / 3600 if not triad_df[triad_df['ProcessingDate'] == selected_date].empty and not benchmark_update_df[benchmark_update_df['ProcessingDate'] == selected_date].empty else 0
+        last_business_day_text = f"Last Business Day Time Difference: {last_business_day_time_diff:.2f} hours" if last_business_day_time_diff else ""
 
         fig_time_diff = px.timeline(merged_df, x_start="StartTime", x_end="EndTime", y="JobName", color="JobName",
                                     title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last Month',
@@ -418,7 +419,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             annotations=[
                 dict(
                     x=selected_date,
-                    y=last_business_day_time_diff[0] if last_business_day_time_diff else 0,
+                    y=last_business_day_time_diff,
                     xref="x",
                     yref="y",
                     text=last_business_day_text,
