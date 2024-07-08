@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -45,13 +45,13 @@ def get_last_business_day():
     elif today.weekday() == 6:  # Sunday
         last_business_day = today - timedelta(days=2)
     else:  # Any other day (Tuesday to Saturday)
-        last_business_day = today - timedelta(days=1)
+        last_business_day = today - timedelta(days(1))
     
     # Ensure the date is within the current month
     if last_business_day.month != today.month:
-        last_business_day = today.replace(day=1) - timedelta(days=1)
+        last_business_day = today.replace(day=1) - timedelta(days(1))
         while last_business_day.weekday() >= 5 or last_business_day.strftime('%Y-%m-%d') in bank_holidays:  # Skip weekends and holidays
-            last_business_day -= timedelta(days=1)
+            last_business_day -= timedelta(days(1))
     
     return last_business_day
 
@@ -405,6 +405,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate'])
     df_30_days['DurationMinutes'] = (df_30_days['EndTime'] - df_30_days['StartTime']).dt.total_seconds() / 60.0
+    df_30_days['StatusBinary'] = df_30_days['Status'].apply(lambda x: 1 if x == 'Failed' else 0)  # Add StatusBinary column
     df_failed = df_30_days[df_30_days['Status'] == 'Failed']
     failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
