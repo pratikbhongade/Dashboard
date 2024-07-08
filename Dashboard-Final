@@ -381,7 +381,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
         bargap=0.4  # Adjust this value to reduce the height of the bars
     )
 
-    df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate'])
+    df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate']).dt.strftime('%Y-%m-%d')
     df_30_days['DurationMinutes'] = (df_30_days['EndTime'] - df_30_days['StartTime']).dt.total_seconds() / 60.0
     df_failed = df_30_days[df_30_days['Status'] == 'Failed']
     failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
@@ -395,7 +395,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
         merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
-        merged_df = merged_df.sort_values('ProcessingDate')  # Ensure the dates are sorted
+        merged_df = merged_df.sort_values('ProcessingDate', ascending=False)  # Ensure the dates are sorted in descending order
 
         fig_time_diff = px.line(
             merged_df,
@@ -405,7 +405,8 @@ def update_dashboard(selected_date, selected_job, selected_status):
             labels={
                 'ProcessingDate': 'Processing Date',
                 'TimeDifference': 'Time Difference (hours)'
-            }
+            },
+            markers=True
         )
         fig_time_diff.update_traces(mode='lines+markers')
         fig_time_diff.update_layout(
@@ -422,8 +423,12 @@ def update_dashboard(selected_date, selected_job, selected_status):
             )
         )
 
-        # Create the table for the last 5 days
-        last_5_days_df = merged_df.tail(5)
+        # Create the table for the last 5 days, including the selected date
+        last_5_days_df = merged_df.drop_duplicates(subset=['ProcessingDate']).head(5)
+        if selected_date not in last_5_days_df['ProcessingDate'].values:
+            selected_date_row = merged_df[merged_df['ProcessingDate'] == selected_date].head(1)
+            last_5_days_df = pd.concat([selected_date_row, last_5_days_df]).drop_duplicates(subset=['ProcessingDate']).head(5)
+
         table_rows = []
         for index, row in last_5_days_df.iterrows():
             row_class = 'table-success' if row['ProcessingDate'] == selected_date else ''
@@ -446,7 +451,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
         ], bordered=True, striped=True, hover=True)
 
     # Calculate average job duration per job
-    df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate'])
+    df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate']).dt.strftime('%Y-%m-%d')
     avg_duration = df_job_duration.groupby(['ProcessingDate', 'JobName'])['DurationMinutes'].mean().reset_index()
     fig_job_duration = px.line(avg_duration, x='ProcessingDate', y='DurationMinutes', color='JobName', title='Average Job Duration Over Time')
 
