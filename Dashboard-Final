@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -182,10 +182,11 @@ app.layout = dbc.Container([
             dbc.Row([
                 dbc.Col([
                     dcc.Graph(id='time-difference-graph')
-                ], width=12)
-            ], className='border', style={'position': 'relative'}),
-            html.Div(id='time-difference-table', style={'position': 'absolute', 'top': '20px', 'left': '20px', 'width': '200px', 'background-color': 'rgba(255, 255, 255, 0.8)', 'padding': '10px', 'border-radius': '5px'})
-            ,
+                ], width=9),
+                dbc.Col([
+                    html.Div(id='time-difference-table', style={'font-size': '12px'})
+                ], width=3)
+            ], className='border'),
             dbc.Row([
                 dbc.Col([
                     html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3")
@@ -394,6 +395,8 @@ def update_dashboard(selected_date, selected_job, selected_status):
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
         merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
+        latest_time_difference = merged_df['TimeDifference'].iloc[-1] if not merged_df.empty else 'No Data'
+
         fig_time_diff = px.line(
             merged_df,
             x='ProcessingDate',
@@ -433,7 +436,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
         time_difference_table = dbc.Table([
             html.Thead(html.Tr([html.Th("Last Business Day"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
             html.Tbody([
-                html.Tr([html.Td(last_business_day), html.Td(f"{time_difference_value:.2f} hours" if time_difference_value != 'No Data' else time_difference_value)])
+                html.Tr([html.Td(last_business_day), html.Td(f"{latest_time_difference:.2f} hours" if latest_time_difference != 'No Data' else latest_time_difference)])
             ])
         ], bordered=True, striped=True, hover=True, className='table-sm')
     else:
