@@ -184,7 +184,7 @@ app.layout = dbc.Container([
                     dcc.Graph(id='time-difference-graph')
                 ], width=9),
                 dbc.Col([
-                    html.Div(id='time-difference-table')
+                    html.Div(id='time-difference-table', style={'font-size': '14px'})
                 ], width=3)
             ], className='border'),
             dbc.Row([
@@ -395,56 +395,55 @@ def update_dashboard(selected_date, selected_job, selected_status):
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
         merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
+        merged_df = merged_df.sort_values('ProcessingDate')  # Ensure the dates are sorted
+
         fig_time_diff = px.line(
             merged_df,
             x='ProcessingDate',
             y='TimeDifference',
             title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 30 Days',
-            hover_data={
-                'ProcessingDate': '|%B %d, %Y',
-                'EndTime_TRIAD': '|%I:%M %p',
-                'EndTime_Benchmark': '|%I:%M %p',
-                'TimeDifference': ':.2f',
+            labels={
+                'ProcessingDate': 'Processing Date',
+                'TimeDifference': 'Time Difference (hours)'
             }
         )
         fig_time_diff.update_traces(mode='lines+markers')
         fig_time_diff.update_layout(
-            xaxis_title='Processing Date',
-            yaxis_title='Time Difference (hours)',
             hovermode='x unified',
-            annotations=[
-                dict(
-                    x=merged_df['ProcessingDate'].iloc[-1],
-                    y=merged_df['TimeDifference'].iloc[-1],
-                    xref='x',
-                    yref='y',
-                    text=f"Latest: {merged_df['TimeDifference'].iloc[-1]:.2f} hours",
-                    showarrow=True,
-                    arrowhead=2
-                )
-            ],
-            legend=dict(title="Jobs", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            legend=dict(title="Jobs", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            xaxis=dict(
+                title='Processing Date',
+                type='category',  # Ensure x-axis is treated as categorical for correct ordering
+                tickformat='%Y-%m-%d'
+            ),
+            yaxis=dict(
+                title='Time Difference (hours)',
+                rangemode='tozero'  # Ensure the y-axis starts from zero
+            )
         )
 
-        # Calculate the time difference for the last business day
-        last_business_day = get_last_business_day().strftime('%Y-%m-%d')
-        last_day_data = merged_df[merged_df['ProcessingDate'] == last_business_day]
-        time_difference_value = last_day_data['TimeDifference'].values[0] if not last_day_data.empty else 'No Data'
+        # Create the table for the last 5 days
+        last_5_days_df = merged_df.tail(5)
+        table_rows = []
+        for index, row in last_5_days_df.iterrows():
+            row_class = 'table-success' if row['ProcessingDate'] == selected_date else ''
+            table_rows.append(html.Tr([
+                html.Td(row['ProcessingDate']),
+                html.Td(f"{row['TimeDifference']:.2f} hours")
+            ], className=row_class))
 
         time_difference_table = dbc.Table([
-            html.Thead(html.Tr([html.Th("Last Business Day"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
-            html.Tbody([
-                html.Tr([html.Td(last_business_day), html.Td(f"{time_difference_value:.2f} hours" if time_difference_value != 'No Data' else time_difference_value)])
-            ])
-        ], bordered=True, striped=True, hover=True, className='table-sm')
+            html.Thead(html.Tr([html.Th("Processing Date"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
+            html.Tbody(table_rows)
+        ], bordered=True, striped=True, hover=True)
     else:
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
         time_difference_table = dbc.Table([
-            html.Thead(html.Tr([html.Th("Last Business Day"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
+            html.Thead(html.Tr([html.Th("Processing Date"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
             html.Tbody([
                 html.Tr([html.Td("No Data"), html.Td("No Data")])
             ])
-        ], bordered=True, striped=True, hover=True, className='table-sm')
+        ], bordered=True, striped=True, hover=True)
 
     # Calculate average job duration per job
     df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate'])
