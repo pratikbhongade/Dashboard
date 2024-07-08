@@ -413,8 +413,8 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
         fig_time_diff = go.Figure()
         fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['TimeDifference'], mode='lines+markers', name='Time Difference'))
-        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_TRIAD'].dt.total_seconds() / 3600, mode='lines+markers', name='TRIAD End Time'))
-        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_Benchmark'].dt.total_seconds() / 3600, mode='lines+markers', name='Benchmark End Time'))
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_TRIAD'].dt.hour + merged_df['EndTime_TRIAD'].dt.minute / 60, mode='lines+markers', name='TRIAD End Time', line=dict(color='blue')))
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_Benchmark'].dt.hour + merged_df['EndTime_Benchmark'].dt.minute / 60, mode='lines+markers', name='Benchmark End Time', line=dict(color='red')))
         fig_time_diff.update_layout(
             title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 6 Months',
             xaxis_title='Processing Date',
