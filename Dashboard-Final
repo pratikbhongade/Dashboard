@@ -244,6 +244,9 @@ app.index_string = '''
             .DateInput_input {
                 font-weight: bold;
             }
+            .bold-end-time td:last-child {
+                font-weight: bold;
+            }
         </style>
     </head>
     <body>
@@ -323,8 +326,16 @@ def update_dashboard(selected_date, selected_job, selected_status):
     benchmark_update_df.loc[:, 'JobName'] = benchmark_update_df['JobName'].str.replace('20. ', '', regex=True)
     other_jobs_df = df[df['JobName'] != '20. Benchmark Update']
 
-    benchmark_update_table = dbc.Table.from_dataframe(benchmark_update_df[['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], striped=True, bordered=True, hover=True, className='table-dark')
-    
+    benchmark_update_table = dbc.Table([
+        html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime']], className='bg-primary text-white')),
+        html.Tbody([
+            html.Tr([
+                html.Td(benchmark_update_df.iloc[i][col]) if col != 'EndTime' else html.Td(benchmark_update_df.iloc[i][col], className='bold-end-time')
+                for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime']
+            ]) for i in range(len(benchmark_update_df))
+        ])
+    ], striped=True, bordered=True, hover=True, className='table-dark')
+
     job_name_options = [{'label': job.replace('20. ', ''), 'value': job} for job in other_jobs_df['JobName'].unique()]
     job_status_options = [{'label': status, 'value': status} for status in other_jobs_df['Status'].unique()]
 
@@ -397,29 +408,27 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
         merged_df = merged_df.sort_values('ProcessingDate', ascending=False)  # Ensure the dates are sorted in descending order
 
-        fig_time_diff = px.line(
-            merged_df,
-            x='ProcessingDate',
-            y='TimeDifference',
-            title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 30 Days',
-            labels={
-                'ProcessingDate': 'Processing Date',
-                'TimeDifference': 'Time Difference (hours)'
-            },
-            markers=True
-        )
-        fig_time_diff.update_traces(mode='lines+markers')
+        fig_time_diff = go.Figure()
+        fig_time_diff.add_trace(go.Scatter(
+            x=merged_df['ProcessingDate'],
+            y=merged_df['TimeDifference'],
+            mode='lines+markers',
+            name='Time Difference',
+            line=dict(color='blue'),
+            marker=dict(size=8)
+        ))
         fig_time_diff.update_layout(
+            title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 30 Days',
+            xaxis_title='Processing Date',
+            yaxis_title='Time Difference (hours)',
             hovermode='x unified',
-            legend=dict(title="Jobs", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             xaxis=dict(
-                title='Processing Date',
-                type='category',  # Ensure x-axis is treated as categorical for correct ordering
+                type='category',
                 tickformat='%Y-%m-%d'
             ),
             yaxis=dict(
-                title='Time Difference (hours)',
-                rangemode='tozero'  # Ensure the y-axis starts from zero
+                rangemode='tozero'
             )
         )
 
