@@ -184,7 +184,7 @@ app.layout = dbc.Container([
                     dcc.Graph(id='time-difference-graph')
                 ], width=9),
                 dbc.Col([
-                    html.Div(id='time-difference-table', style={'font-size': '12px'})
+                    html.Div(id='time-difference-table', style={'font-size': '14px'})  # Restored the previous size
                 ], width=3)
             ], className='border'),
             dbc.Row([
@@ -402,29 +402,14 @@ def update_dashboard(selected_date, selected_job, selected_status):
             x='ProcessingDate',
             y='TimeDifference',
             title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 30 Days',
-            hover_data={
-                'ProcessingDate': '|%B %d, %Y',
-                'EndTime_TRIAD': '|%I:%M %p',
-                'EndTime_Benchmark': '|%I:%M %p',
-                'TimeDifference': ':.2f',
+            labels={
+                'ProcessingDate': 'Processing Date',
+                'TimeDifference': 'Time Difference (hours)'
             }
         )
         fig_time_diff.update_traces(mode='lines+markers')
         fig_time_diff.update_layout(
-            xaxis_title='Processing Date',
-            yaxis_title='Time Difference (hours)',
             hovermode='x unified',
-            annotations=[
-                dict(
-                    x=merged_df['ProcessingDate'].iloc[-1],
-                    y=merged_df['TimeDifference'].iloc[-1],
-                    xref='x',
-                    yref='y',
-                    text=f"Latest: {merged_df['TimeDifference'].iloc[-1]:.2f} hours",
-                    showarrow=True,
-                    arrowhead=2
-                )
-            ],
             legend=dict(title="Jobs", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
 
