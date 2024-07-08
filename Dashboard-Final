@@ -397,6 +397,8 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
         latest_time_difference = merged_df['TimeDifference'].iloc[-1] if not merged_df.empty else 'No Data'
 
+        merged_df = merged_df.sort_values('ProcessingDate')  # Ensure the dates are sorted
+
         fig_time_diff = px.line(
             merged_df,
             x='ProcessingDate',
@@ -423,7 +425,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             html.Tbody([
                 html.Tr([html.Td(last_business_day), html.Td(f"{latest_time_difference:.2f} hours" if latest_time_difference != 'No Data' else latest_time_difference)])
             ])
-        ], bordered=True, striped=True, hover=True, className='table-sm')
+        ], bordered=True, striped=True, hover=True)
     else:
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
         time_difference_table = dbc.Table([
@@ -431,7 +433,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             html.Tbody([
                 html.Tr([html.Td("No Data"), html.Td("No Data")])
             ])
-        ], bordered=True, striped=True, hover=True, className='table-sm')
+        ], bordered=True, striped=True, hover=True)
 
     # Calculate average job duration per job
     df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate'])
