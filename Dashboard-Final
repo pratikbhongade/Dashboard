@@ -45,13 +45,13 @@ def get_last_business_day():
     elif today.weekday() == 6:  # Sunday
         last_business_day = today - timedelta(days=2)
     else:  # Any other day (Tuesday to Saturday)
-        last_business_day = today - timedelta(days(1))
+        last_business_day = today - timedelta(days=1)
     
     # Ensure the date is within the current month
     if last_business_day.month != today.month:
-        last_business_day = today.replace(day=1) - timedelta(days(1))
+        last_business_day = today.replace(day=1) - timedelta(days=1)
         while last_business_day.weekday() >= 5 or last_business_day.strftime('%Y-%m-%d') in bank_holidays:  # Skip weekends and holidays
-            last_business_day -= timedelta(days(1))
+            last_business_day -= timedelta(days=1)
     
     return last_business_day
 
@@ -323,7 +323,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
 
@@ -334,7 +334,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
