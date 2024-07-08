@@ -25,18 +25,6 @@ logo_path = 'C:\\Aspire_Dashboard\\Aspire.png'
 with open(logo_path, 'rb') as f:
     logo_base64 = base64.b64encode(f.read()).decode('ascii')
 
-# List of bank holidays
-bank_holidays = [
-    "2024-01-01",  # New Year's Day
-    "2024-01-15",  # Martin Luther King, Jr. Day
-    "2024-05-27",  # Memorial Day
-    "2024-06-19",  # Juneteenth National Independence Day
-    "2024-07-04",  # Independence Day
-    "2024-09-02",  # Labor Day
-    "2024-11-28",  # Thanksgiving Day
-    "2024-12-25"   # Christmas
-]
-
 # Function to get the last business day
 def get_last_business_day():
     today = datetime.today()
@@ -50,7 +38,7 @@ def get_last_business_day():
     # Ensure the date is within the current month
     if last_business_day.month != today.month:
         last_business_day = today.replace(day=1) - timedelta(days=1)
-        while last_business_day.weekday() >= 5 or last_business_day.strftime('%Y-%m-%d') in bank_holidays:  # Skip weekends and holidays
+        while last_business_day.weekday() >= 5:  # Skip weekends
             last_business_day -= timedelta(days=1)
     
     return last_business_day
@@ -301,12 +289,12 @@ def update_dashboard(selected_date, selected_job, selected_status):
     now = datetime.now()
     selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
     
-    # Check if the selected date is a bank holiday, weekend, future date, or before 9 PM today
-    if selected_date in bank_holidays or selected_date_obj.weekday() >= 5 or selected_date_obj > now or (selected_date == now.strftime('%Y-%m-%d') and now.hour < 21):
-        if selected_date in bank_holidays or selected_date_obj.weekday() >= 5:
+    # Check if the selected date is a weekend, future date, or before 9 PM today
+    if selected_date_obj.weekday() >= 5 or selected_date_obj > now or (selected_date == now.strftime('%Y-%m-%d') and now.hour < 21):
+        if selected_date_obj.weekday() >= 5:
             message = html.Div(
                 [
-                    html.H4("No data available due to holiday", className='text-center text-danger')
+                    html.H4("No data available due to weekend", className='text-center text-danger')
                 ]
             )
         elif selected_date_obj > now:
@@ -424,6 +412,8 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
         fig_time_diff = go.Figure()
         fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['TimeDifference'], mode='lines+markers', name='Time Difference'))
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_TRIAD'].dt.total_seconds() / 3600, mode='lines+markers', name='TRIAD End Time'))
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_Benchmark'].dt.total_seconds() / 3600, mode='lines+markers', name='Benchmark End Time'))
         fig_time_diff.update_layout(
             title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 6 Months',
             xaxis_title='Processing Date',
