@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options as Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -95,7 +95,7 @@ def fetch_data(selected_date):
     """
     df_30_days = pd.read_sql(query_30_days, conn)
 
-    query_1_month = """
+    query_6_months = """
     SELECT 
         CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
         JSJ.Name as JobName,
@@ -104,11 +104,11 @@ def fetch_data(selected_date):
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE JSH.StartTime >= DATEADD(month, -1, GETDATE())
+    WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
     AND (JSJ.Name = '18. TRIAD' OR JSJ.Name = '20. Benchmark Update')
     ORDER BY ProcessingDate, JSJ.Name
     """
-    df_1_month = pd.read_sql(query_1_month, conn)
+    df_6_months = pd.read_sql(query_6_months, conn)
 
     query_job_duration = """
     SELECT 
@@ -124,10 +124,10 @@ def fetch_data(selected_date):
 
     conn.close()
 
-    return df, df_30_days, df_1_month, df_job_duration
+    return df, df_30_days, df_6_months, df_job_duration
 
 # Fetch initial data
-df, df_30_days, df_1_month, df_job_duration = fetch_data(default_date)
+df, df_30_days, df_6_months, df_job_duration = fetch_data(default_date)
 
 # Initialize the Dash app with Bootstrap CSS
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -194,11 +194,6 @@ app.layout = dbc.Container([
                     dcc.Graph(id='failure-trend-graph')
                 ], width=12)
             ], className='border'),
-            dbc.Row([
-                dbc.Col([
-                    html.Div(id='time-difference-text', className='text-center mb-3', style={'font-weight': 'bold'})
-                ], width=12)
-            ]),
             dbc.Row([
                 dbc.Col([
                     dcc.Graph(id='time-difference-graph')
@@ -283,7 +278,6 @@ app.index_string = '''
      Output('status-bar-graph', 'figure'),
      Output('failure-trend-graph', 'figure'),
      Output('time-difference-graph', 'figure'),
-     Output('time-difference-text', 'children'),
      Output('job-duration-graph', 'figure'),
      Output('performance-metrics-graph', 'figure'),
      Output('anomaly-detection-graph', 'figure'),
@@ -318,9 +312,9 @@ def update_dashboard(selected_date, selected_job, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, "", empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
-    df, df_30_days, df_1_month, df_job_duration = fetch_data(selected_date)
+    df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
 
     if df.empty:
         message = html.Div(
@@ -329,7 +323,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, "", empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -406,23 +400,41 @@ def update_dashboard(selected_date, selected_job, selected_status):
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
 
-    triad_df = df_1_month[df_1_month['JobName'] == '18. TRIAD']
-    benchmark_update_df = df_1_month[df_1_month['JobName'] == '20. Benchmark Update']
+    triad_df = df_6_months[df_6_months['JobName'] == '18. TRIAD']
+    benchmark_update_df = df_6_months[df_6_months['JobName'] == '20. Benchmark Update']
 
     if not triad_df.empty and not benchmark_update_df.empty:
-        triad_df['JobName'] = 'TRIAD'
-        benchmark_update_df['JobName'] = 'Benchmark Update'
-        merged_df = pd.concat([triad_df, benchmark_update_df])
+        merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
+        merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
         # Last business day time difference
-        last_business_day_time_diff = (benchmark_update_df[benchmark_update_df['ProcessingDate'] == selected_date]['EndTime'].values[0] - triad_df[triad_df['ProcessingDate'] == selected_date]['EndTime'].values[0]).total_seconds() / 3600 if not triad_df[triad_df['ProcessingDate'] == selected_date].empty and not benchmark_update_df[benchmark_update_df['ProcessingDate'] == selected_date].empty else 0
-        last_business_day_text = f"Last Business Day Time Difference: {last_business_day_time_diff:.2f} hours" if last_business_day_time_diff else ""
+        last_business_day_time_diff = merged_df[merged_df['ProcessingDate'] == selected_date]['TimeDifference'].values
+        last_business_day_text = f"Last Business Day Time Difference: {last_business_day_time_diff[0]:.2f} hours" if last_business_day_time_diff else ""
 
-        fig_time_diff = px.timeline(merged_df, x_start="StartTime", x_end="EndTime", y="JobName", color="JobName",
-                                    title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last Month',
-                                    labels={'StartTime': 'Start Time', 'EndTime': 'End Time'})
+        fig_time_diff = go.Figure()
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['TimeDifference'], mode='lines+markers', name='Time Difference'))
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=(merged_df['EndTime_TRIAD'] - merged_df['EndTime_TRIAD'].min()).dt.total_seconds() / 3600, mode='lines+markers', name='TRIAD End Time'))
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=(merged_df['EndTime_Benchmark'] - merged_df['EndTime_Benchmark'].min()).dt.total_seconds() / 3600, mode='lines+markers', name='Benchmark End Time'))
+        fig_time_diff.update_layout(
+            title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 6 Months',
+            xaxis_title='Processing Date',
+            yaxis_title='Time Difference (hours)',
+            annotations=[
+                dict(
+                    x=selected_date,
+                    y=last_business_day_time_diff[0] if last_business_day_time_diff else 0,
+                    xref="x",
+                    yref="y",
+                    text=last_business_day_text,
+                    showarrow=True,
+                    arrowhead=7,
+                    ax=0,
+                    ay=-40
+                )
+            ]
+        )
     else:
-        fig_time_diff = px.timeline(title='No data available for TRIAD or Benchmark Update jobs.')
+        fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
 
     # Calculate average job duration per job
     df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate'])
@@ -447,7 +459,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, last_business_day_text, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
+    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
