@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -94,7 +94,7 @@ def fetch_data(selected_date):
     AND (JSJ.Name = '18. TRIAD' OR JSJ.Name = '20. Benchmark Update')
     ORDER BY ProcessingDate, JSJ.Name
     """
-    df_30_days = pd.read_sql(query, conn)
+    df_30_days = pd.read_sql(query_30_days, conn)
 
     query_job_duration = """
     SELECT 
@@ -395,7 +395,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
         # Last business day time difference
         last_business_day_time_diff = merged_df[merged_df['ProcessingDate'] == selected_date]['TimeDifference'].values
-        last_business_day_text = f"Last Business Day Time Difference: {last_business_day_time_diff[0]:.2f} hours" if last_business_day_time_diff else ""
+        last_business_day_text = f"Last Business Day Time Difference: {last_business_day_time_diff[0]:.2f} hours" if len(last_business_day_time_diff) > 0 else ""
 
         fig_time_diff = go.Figure()
         fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['TimeDifference'], mode='lines+markers', name='Time Difference'))
@@ -406,7 +406,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             annotations=[
                 dict(
                     x=selected_date,
-                    y=last_business_day_time_diff[0] if last_business_day_time_diff else 0,
+                    y=last_business_day_time_diff[0] if len(last_business_day_time_diff) > 0 else 0,
                     xref="x",
                     yref="y",
                     text=last_business_day_text,
