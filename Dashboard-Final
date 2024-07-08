@@ -429,7 +429,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     # Performance metrics comparison
     performance_metrics = df_30_days.groupby('JobName').agg(
         AvgDuration=('DurationMinutes', 'mean'),
-        SuccessRate=('StatusBinary', lambda x: (1 - x.mean()) * 100),
+        SuccessRate=('Status', lambda x: (x != 'Failed').mean() * 100),
         Frequency=('JobName', 'count')
     ).reset_index()
     fig_performance_metrics = px.box(performance_metrics.melt(id_vars='JobName'), x='JobName', y='value', color='variable', title='Performance Metrics Comparison')
