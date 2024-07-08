@@ -196,6 +196,11 @@ app.layout = dbc.Container([
             ], className='border'),
             dbc.Row([
                 dbc.Col([
+                    html.Div(id='time-difference-text', className='text-center mb-3', style={'font-weight': 'bold'})
+                ], width=12)
+            ]),
+            dbc.Row([
+                dbc.Col([
                     dcc.Graph(id='time-difference-graph')
                 ], width=12)
             ], className='border'),
@@ -278,6 +283,7 @@ app.index_string = '''
      Output('status-bar-graph', 'figure'),
      Output('failure-trend-graph', 'figure'),
      Output('time-difference-graph', 'figure'),
+     Output('time-difference-text', 'children'),
      Output('job-duration-graph', 'figure'),
      Output('performance-metrics-graph', 'figure'),
      Output('anomaly-detection-graph', 'figure'),
@@ -312,7 +318,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, "", empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_1_month, df_job_duration = fetch_data(selected_date)
 
@@ -323,7 +329,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, [], [], message, empty_fig, empty_fig, empty_fig, "", empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -415,21 +421,6 @@ def update_dashboard(selected_date, selected_job, selected_status):
         fig_time_diff = px.timeline(merged_df, x_start="StartTime", x_end="EndTime", y="JobName", color="JobName",
                                     title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last Month',
                                     labels={'StartTime': 'Start Time', 'EndTime': 'End Time'})
-        fig_time_diff.update_layout(
-            annotations=[
-                dict(
-                    x=selected_date,
-                    y=last_business_day_time_diff,
-                    xref="x",
-                    yref="y",
-                    text=last_business_day_text,
-                    showarrow=True,
-                    arrowhead=7,
-                    ax=0,
-                    ay=-40
-                )
-            ]
-        )
     else:
         fig_time_diff = px.timeline(title='No data available for TRIAD or Benchmark Update jobs.')
 
@@ -456,7 +447,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
+    return benchmark_update_table, job_name_options, job_status_options, job_table, fig_status, fig_trend, fig_time_diff, last_business_day_text, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
