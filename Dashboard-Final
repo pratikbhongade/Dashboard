@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options as Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -85,7 +85,8 @@ def fetch_data(selected_date):
         CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
         JSJ.Name as JobName,
         CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime],
-        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime]
+        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime],
+        JSH.Status
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
@@ -93,7 +94,7 @@ def fetch_data(selected_date):
     AND (JSJ.Name = '18. TRIAD' OR JSJ.Name = '20. Benchmark Update')
     ORDER BY ProcessingDate, JSJ.Name
     """
-    df_30_days = pd.read_sql(query_30_days, conn)
+    df_30_days = pd.read_sql(query, conn)
 
     query_job_duration = """
     SELECT 
