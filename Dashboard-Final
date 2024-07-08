@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -95,7 +95,7 @@ def fetch_data(selected_date):
     """
     df_30_days = pd.read_sql(query_30_days, conn)
 
-    query_6_months = """
+    query_1_month = """
     SELECT 
         CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
         JSJ.Name as JobName,
@@ -104,11 +104,11 @@ def fetch_data(selected_date):
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
+    WHERE JSH.StartTime >= DATEADD(month, -1, GETDATE())
     AND (JSJ.Name = '18. TRIAD' OR JSJ.Name = '20. Benchmark Update')
     ORDER BY ProcessingDate, JSJ.Name
     """
-    df_6_months = pd.read_sql(query_6_months, conn)
+    df_1_month = pd.read_sql(query_1_month, conn)
 
     query_job_duration = """
     SELECT 
@@ -118,16 +118,16 @@ def fetch_data(selected_date):
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
+    WHERE JSH.StartTime >= DATEADD(month, -1, GETDATE())
     """
     df_job_duration = pd.read_sql(query_job_duration, conn)
 
     conn.close()
 
-    return df, df_30_days, df_6_months, df_job_duration
+    return df, df_30_days, df_1_month, df_job_duration
 
 # Fetch initial data
-df, df_30_days, df_6_months, df_job_duration = fetch_data(default_date)
+df, df_30_days, df_1_month, df_job_duration = fetch_data(default_date)
 
 # Initialize the Dash app with Bootstrap CSS
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -314,7 +314,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
         empty_fig = px.bar()
         return message, [], [], message, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
-    df, df_30_days, df_6_months, df_job_duration = fetch_data(selected_date)
+    df, df_30_days, df_1_month, df_job_duration = fetch_data(selected_date)
 
     if df.empty:
         message = html.Div(
@@ -400,8 +400,8 @@ def update_dashboard(selected_date, selected_job, selected_status):
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
 
-    triad_df = df_6_months[df_6_months['JobName'] == '18. TRIAD']
-    benchmark_update_df = df_6_months[df_6_months['JobName'] == '20. Benchmark Update']
+    triad_df = df_1_month[df_1_month['JobName'] == '18. TRIAD']
+    benchmark_update_df = df_1_month[df_1_month['JobName'] == '20. Benchmark Update']
 
     if not triad_df.empty and not benchmark_update_df.empty:
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
@@ -413,12 +413,12 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
         fig_time_diff = go.Figure()
         fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['TimeDifference'], mode='lines+markers', name='Time Difference'))
-        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=(merged_df['EndTime_TRIAD'] - merged_df['EndTime_TRIAD'].min()).dt.total_seconds() / 3600, mode='lines+markers', name='TRIAD End Time'))
-        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=(merged_df['EndTime_Benchmark'] - merged_df['EndTime_Benchmark'].min()).dt.total_seconds() / 3600, mode='lines+markers', name='Benchmark End Time'))
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_TRIAD'].dt.total_seconds() / 3600, mode='lines+markers', name='TRIAD End Time'))
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_Benchmark'].dt.total_seconds() / 3600, mode='lines+markers', name='Benchmark End Time'))
         fig_time_diff.update_layout(
-            title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 6 Months',
+            title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last Month',
             xaxis_title='Processing Date',
-            yaxis_title='Time Difference (hours)',
+            yaxis_title='Time (hours)',
             annotations=[
                 dict(
                     x=selected_date,
