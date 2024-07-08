@@ -412,11 +412,10 @@ def update_dashboard(selected_date, selected_job, selected_status):
         last_business_day_text = f"Last Business Day Time Difference: {last_business_day_time_diff[0]:.2f} hours" if last_business_day_time_diff else ""
 
         fig_time_diff = go.Figure()
-        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['TimeDifference'], mode='lines+markers', name='Time Difference'))
-        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_TRIAD'].dt.total_seconds() / 3600, mode='lines+markers', name='TRIAD End Time'))
-        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_Benchmark'].dt.total_seconds() / 3600, mode='lines+markers', name='Benchmark End Time'))
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_TRIAD'].dt.hour + merged_df['EndTime_TRIAD'].dt.minute / 60, mode='lines+markers', name='TRIAD End Time', line=dict(color='blue')))
+        fig_time_diff.add_trace(go.Scatter(x=merged_df['ProcessingDate'], y=merged_df['EndTime_Benchmark'].dt.hour + merged_df['EndTime_Benchmark'].dt.minute / 60, mode='lines+markers', name='Benchmark End Time', line=dict(color='red')))
         fig_time_diff.update_layout(
-            title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last Month',
+            title='End Times of TRIAD and Benchmark Update Jobs Over the Last Month',
             xaxis_title='Processing Date',
             yaxis_title='Time (hours)',
             annotations=[
@@ -431,7 +430,9 @@ def update_dashboard(selected_date, selected_job, selected_status):
                     ax=0,
                     ay=-40
                 )
-            ]
+            ],
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+            font=dict(size=12)
         )
     else:
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
