@@ -491,7 +491,7 @@ def update_dashboard(selected_date, selected_status):
             legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
     else:
-        fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
+        fig_time_diff = px.bar(title='No data available for TRIAD or Benchmark Update jobs.')
         time_difference_table = dbc.Table([
             html.Thead(html.Tr([html.Th("Processing Date"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
             html.Tbody([
