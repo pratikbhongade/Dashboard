@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options as Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -199,22 +199,6 @@ app.layout = dbc.Container([
             ], className='border'),
             dbc.Row([
                 dbc.Col([
-                    dcc.Loading(
-                        id="loading-time-difference-graph",
-                        type="default",
-                        children=dcc.Graph(id='time-difference-graph', className='fade-in')
-                    )
-                ], width=9),
-                dbc.Col([
-                    dcc.Loading(
-                        id="loading-time-difference-table",
-                        type="default",
-                        children=html.Div(id='time-difference-table', style={'font-size': '14px'}, className='fade-in')
-                    )
-                ], width=3)
-            ], className='border'),
-            dbc.Row([
-                dbc.Col([
                     html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3 pulse", style={'width': '200px'}),
                     dbc.Tooltip("Send Dashboard via Email", target="send-email-button")
                 ], width=12, className='d-flex justify-content-center')
@@ -262,6 +246,24 @@ app.layout = dbc.Container([
                         children=dcc.Graph(id='time-to-recovery-graph', className='fade-in')
                     )
                 ], width=12)
+            ], className='border mt-3')
+        ]),
+        dbc.Tab(label='Time Difference', tab_id='time-difference', children=[
+            dbc.Row([
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-time-difference-graph",
+                        type="default",
+                        children=dcc.Graph(id='time-difference-graph', className='fade-in')
+                    )
+                ], width=9),
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-time-difference-table",
+                        type="default",
+                        children=html.Div(id='time-difference-table', style={'font-size': '14px'}, className='fade-in')
+                    )
+                ], width=3)
             ], className='border mt-3')
         ])
     ]),
@@ -399,13 +401,10 @@ def update_dashboard(selected_date, selected_status):
     failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
-    fig_trend.update_layout(bargap=0.2)
+    fig_trend.update_layout(bargap=0.4)
 
     triad_df = df_30_days[df_30_days['JobName'] == '18. TRIAD']
     benchmark_update_df = df_30_days[df_30_days['JobName'] == '20. Benchmark Update']
-
-    # All jobs from 1. Lockbox KEF till 18. TRIAD
-    all_jobs_df = df_30_days[(df_30_days['JobName'] >= '1. Lockbox KEF') & (df_30_days['JobName'] <= '18. TRIAD')]
 
     if not triad_df.empty and not benchmark_update_df.empty:
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
@@ -414,29 +413,12 @@ def update_dashboard(selected_date, selected_status):
         merged_df = merged_df.sort_values('ProcessingDate', ascending=False)  # Ensure the dates are sorted in descending order
 
         fig_time_diff = go.Figure()
-        # Add lines for the three sets of data
-        fig_time_diff.add_trace(go.Bar(
-            x=all_jobs_df['ProcessingDate'],
-            y=all_jobs_df['DurationMinutes'],
-            name='All Jobs from Lockbox KEF to TRIAD',
-            marker=dict(color='green'),
-            hoverinfo='text',
-            text=all_jobs_df['JobName']
-        ))
         fig_time_diff.add_trace(go.Scatter(
             x=merged_df['ProcessingDate'],
             y=merged_df['TimeDifference'],
             mode='lines+markers',
-            name='Sourcing Job Time Difference',
+            name='Time Difference',
             line=dict(color='blue'),
-            marker=dict(size=8)
-        ))
-        fig_time_diff.add_trace(go.Scatter(
-            x=benchmark_update_df['ProcessingDate'],
-            y=benchmark_update_df['DurationMinutes'],
-            mode='lines+markers',
-            name='Benchmark Update',
-            line=dict(color='red'),
             marker=dict(size=8)
         ))
         fig_time_diff.update_layout(
