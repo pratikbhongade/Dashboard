@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options as Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -449,14 +449,17 @@ def update_dashboard(selected_date, selected_status):
 
         merged_df = merged_df.sort_values('ProcessingDate', ascending=False)  # Ensure the dates are sorted in descending order
 
-        # Create the table for the last 5 days, including the selected date
-        last_5_days_df = merged_df.drop_duplicates(subset=['ProcessingDate']).head(5)
-        if selected_date not in last_5_days_df['ProcessingDate'].values:
+        # Create the table for the last 5 business days, including the selected date
+        last_5_business_days = merged_df.drop_duplicates(subset=['ProcessingDate'])
+        last_5_business_days = last_5_business_days[~last_5_business_days['ProcessingDate'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d').weekday() >= 5)]
+        last_5_business_days = last_5_business_days.head(5)
+        
+        if selected_date not in last_5_business_days['ProcessingDate'].values:
             selected_date_row = merged_df[merged_df['ProcessingDate'] == selected_date].head(1)
-            last_5_days_df = pd.concat([selected_date_row, last_5_days_df]).drop_duplicates(subset=['ProcessingDate']).head(5)
+            last_5_business_days = pd.concat([selected_date_row, last_5_business_days]).drop_duplicates(subset=['ProcessingDate']).head(5)
 
         table_rows = []
-        for index, row in last_5_days_df.iterrows():
+        for index, row in last_5_business_days.iterrows():
             row_class = 'table-success' if row['ProcessingDate'] == selected_date else ''
             table_rows.append(html.Tr([
                 html.Td(row['ProcessingDate']),
@@ -468,9 +471,9 @@ def update_dashboard(selected_date, selected_status):
             html.Tbody(table_rows)
         ], bordered=True, striped=True, hover=True)
 
-        # Time difference for main dashboard bar graph for last 5 days
+        # Time difference for main dashboard bar graph for last 5 business days
         main_time_diff_data = []
-        for date in last_5_days_df['ProcessingDate'].unique():
+        for date in last_5_business_days['ProcessingDate'].unique():
             triad_time = triad_df[triad_df['ProcessingDate'] == date]['EndTime'].max()
             benchmark_start_time = benchmark_update_df[benchmark_update_df['ProcessingDate'] == date]['StartTime'].min()
             sourcing_time_difference = (benchmark_start_time - triad_time).total_seconds() / 3600
@@ -485,15 +488,25 @@ def update_dashboard(selected_date, selected_status):
 
         main_time_diff_df = pd.DataFrame(main_time_diff_data)
 
-        fig_time_diff_main = px.bar(main_time_diff_df, x='ProcessingDate', y='Time', color='Type', title='Time Difference Analysis for Last 5 Days', barmode='group')
+        fig_time_diff_main = px.bar(main_time_diff_df, x='ProcessingDate', y='Time', color='Type', title='Time Difference Analysis for Last 5 Business Days', barmode='group')
         fig_time_diff_main.update_layout(
             xaxis_title='Processing Date',
             yaxis_title='Time (hours)',
             hovermode='x unified',
             legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
+
+        # Line graph for the Time Difference tab
+        fig_time_diff = px.line(merged_df, x='ProcessingDate', y='TimeDifference', title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 30 Days', markers=True)
+        fig_time_diff.update_layout(
+            xaxis_title='Processing Date',
+            yaxis_title='Time Difference (hours)',
+            hovermode='x unified',
+            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+
     else:
-        fig_time_diff = px.bar(title='No data available for TRIAD or Benchmark Update jobs.')
+        fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
         time_difference_table = dbc.Table([
             html.Thead(html.Tr([html.Th("Processing Date"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
             html.Tbody([
