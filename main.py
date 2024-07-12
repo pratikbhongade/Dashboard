@@ -415,13 +415,13 @@ def update_dashboard(selected_date, selected_status):
 
         fig_time_diff = go.Figure()
         # Add lines for the three sets of data
-        fig_time_diff.add_trace(go.Scatter(
+        fig_time_diff.add_trace(go.Bar(
             x=all_jobs_df['ProcessingDate'],
             y=all_jobs_df['DurationMinutes'],
-            mode='lines+markers',
             name='All Jobs from Lockbox KEF to TRIAD',
-            line=dict(color='green'),
-            marker=dict(size=8)
+            marker=dict(color='green'),
+            hoverinfo='text',
+            text=all_jobs_df['JobName']
         ))
         fig_time_diff.add_trace(go.Scatter(
             x=merged_df['ProcessingDate'],
