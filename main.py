@@ -169,8 +169,8 @@ app.layout = dbc.Container([
                             placeholder="Select Status",
                             className='mb-4'
                         )
-                    ], width=6),
-                ]),
+                    ]),
+                ], width=6),
                 dbc.Col([
                     dcc.Loading(
                         id="loading-job-table",
