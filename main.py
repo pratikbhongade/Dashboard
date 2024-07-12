@@ -80,7 +80,7 @@ def fetch_data(selected_date):
     """
     df = pd.read_sql(query, conn)
 
-    query_30_days = """
+    query_30_days = f"""
     SELECT 
         CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
         JSH.Status,
@@ -91,11 +91,11 @@ def fetch_data(selected_date):
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE JSH.StartTime >= DATEADD(day, -30, GETDATE())
+    WHERE CONVERT(varchar, JSH.StartTime, 23) = '{selected_date}'
     """
     df_30_days = pd.read_sql(query_30_days, conn)
 
-    query_job_duration = """
+    query_job_duration = f"""
     SELECT 
         CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
         JSJ.Name as JobName,
@@ -103,7 +103,7 @@ def fetch_data(selected_date):
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
+    WHERE CONVERT(varchar, JSH.StartTime, 23) = '{selected_date}'
     """
     df_job_duration = pd.read_sql(query_job_duration, conn)
 
@@ -409,9 +409,34 @@ def update_dashboard(selected_date, selected_status):
     # Exclude "Benchmark Update" from failure trend
     df_failed = df_30_days[(df_30_days['Status'] == 'Failed') & (df_30_days['JobName'] != '20. Benchmark Update')]
     failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
-    fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
+    fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend for Selected Date', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
-    fig_trend.update_layout(bargap=0.4)
+    fig_trend.update_layout(
+        bargap=0.4,
+        template='plotly_white',
+        plot_bgcolor='rgba(229,236,246,1)',
+        title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
+        xaxis=dict(
+            showgrid=True,
+            showline=False,
+            linewidth=1,
+            linecolor='black',
+            mirror=True,
+            gridcolor='lightgrey',
+            tickformat='%Y-%m-%d'
+        ),
+        yaxis=dict(
+            showgrid=True,
+            showline=False,
+            linewidth=1,
+            linecolor='black',
+            mirror=True,
+            gridcolor='lightgrey',
+            rangemode='tozero'
+        ),
+        font=dict(size=14),
+        hovermode='x unified'
+    )
 
     triad_df = df_30_days[df_30_days['JobName'] == '18. TRIAD']
     benchmark_update_df = df_30_days[df_30_days['JobName'] == '20. Benchmark Update']
@@ -432,7 +457,7 @@ def update_dashboard(selected_date, selected_status):
             marker=dict(size=8)
         ))
         fig_time_diff.update_layout(
-            title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 30 Days',
+            title='Time Difference between TRIAD and Benchmark Update Jobs for Selected Date',
             xaxis_title='Processing Date',
             yaxis_title='Time Difference (hours)',
             hovermode='x unified',
@@ -689,5 +714,5 @@ def main():
     except KeyboardInterrupt:
         pass
 
-if __name__ == '__':
+if __name__ == '__main__':
     main()
