@@ -200,9 +200,9 @@ app.layout = dbc.Container([
             dbc.Row([
                 dbc.Col([
                     dcc.Loading(
-                        id="loading-sourcing-time-bar-graph",
+                        id="loading-time-difference-graph-main",
                         type="default",
-                        children=dcc.Graph(id='sourcing-time-bar-graph', className='fade-in')
+                        children=dcc.Graph(id='time-difference-graph-main', className='fade-in')
                     )
                 ], width=12)
             ], className='border'),
@@ -289,13 +289,13 @@ app.layout = dbc.Container([
      Output('status-dropdown', 'options'),
      Output('status-bar-graph', 'figure'),
      Output('failure-trend-graph', 'figure'),
-     Output('sourcing-time-bar-graph', 'figure'),
      Output('time-difference-graph', 'figure'),
      Output('time-difference-table', 'children'),
      Output('job-duration-graph', 'figure'),
      Output('performance-metrics-graph', 'figure'),
      Output('anomaly-detection-graph', 'figure'),
-     Output('time-to-recovery-graph', 'figure')],
+     Output('time-to-recovery-graph', 'figure'),
+     Output('time-difference-graph-main', 'figure')],
     [Input('date-picker-table', 'date'),
      Input('status-dropdown', 'value')]
 )
@@ -325,7 +325,7 @@ def update_dashboard(selected_date, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, message, [], empty_fig, empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_job_duration, df_unlock_online = fetch_data(selected_date)
 
@@ -336,7 +336,7 @@ def update_dashboard(selected_date, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, message, [], empty_fig, empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -415,10 +415,8 @@ def update_dashboard(selected_date, selected_status):
 
     triad_df = df_30_days[df_30_days['JobName'] == '18. TRIAD']
     benchmark_update_df = df_30_days[df_30_days['JobName'] == '20. Benchmark Update']
-    lockbox_kef_df = df_30_days[df_30_days['JobName'] == '1. Lockbox KEF']
-    all_jobs_df = df_30_days[(df_30_days['JobName'] >= '1. Lockbox KEF') & (df_30_days['JobName'] <= '18. TRIAD')]
 
-    if not triad_df.empty and not benchmark_update_df.empty and not lockbox_kef_df.empty:
+    if not triad_df.empty and not benchmark_update_df.empty:
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
         merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
@@ -466,58 +464,6 @@ def update_dashboard(selected_date, selected_status):
             html.Thead(html.Tr([html.Th("Processing Date"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
             html.Tbody(table_rows)
         ], bordered=True, striped=True, hover=True)
-
-        # Calculate the time taken for the three stages: Lockbox to TRIAD, Sourcing Job, and Benchmark Update
-        lockbox_to_triad_df = pd.merge(lockbox_kef_df, triad_df, on='ProcessingDate', suffixes=('_Lockbox', '_TRIAD'))
-        lockbox_to_triad_df['DurationHours'] = (lockbox_to_triad_df['EndTime_TRIAD'] - lockbox_to_triad_df['StartTime_Lockbox']).dt.total_seconds() / 3600
-
-        sourcing_duration = (benchmark_update_df['StartTime'] - triad_df['EndTime']).dt.total_seconds() / 3600
-        benchmark_duration = (benchmark_update_df['EndTime'] - benchmark_update_df['StartTime']).dt.total_seconds() / 3600
-
-        sourcing_time_df = pd.DataFrame({
-            'ProcessingDate': benchmark_update_df['ProcessingDate'],
-            'Lockbox to TRIAD': lockbox_to_triad_df['DurationHours'],
-            'Sourcing': sourcing_duration,
-            'Benchmark Update': benchmark_duration
-        }).tail(5)
-
-        fig_sourcing_time = go.Figure()
-        fig_sourcing_time.add_trace(go.Bar(
-            x=sourcing_time_df['Lockbox to TRIAD'],
-            y=sourcing_time_df['ProcessingDate'],
-            orientation='h',
-            name='Lockbox to TRIAD',
-            marker=dict(color='blue')
-        ))
-        fig_sourcing_time.add_trace(go.Bar(
-            x=sourcing_time_df['Sourcing'],
-            y=sourcing_time_df['ProcessingDate'],
-            orientation='h',
-            name='Sourcing',
-            marker=dict(color='orange')
-        ))
-        fig_sourcing_time.add_trace(go.Bar(
-            x=sourcing_time_df['Benchmark Update'],
-            y=sourcing_time_df['ProcessingDate'],
-            orientation='h',
-            name='Benchmark Update',
-            marker=dict(color='green')
-        ))
-        fig_sourcing_time.update_layout(
-            title='Sourcing Job Time for Last 5 Business Days',
-            xaxis_title='Duration (hours)',
-            yaxis_title='Processing Date',
-            hovermode='x unified',
-            barmode='stack',
-            legend=dict(title="Stages", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis=dict(
-                type='linear'
-            ),
-            yaxis=dict(
-                type='category'
-            )
-        )
-
     else:
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
         time_difference_table = dbc.Table([
@@ -527,7 +473,47 @@ def update_dashboard(selected_date, selected_status):
             ])
         ], bordered=True, striped=True, hover=True)
 
-        fig_sourcing_time = px.bar(title='No data available for Sourcing Job Time.')
+    # Time difference for main dashboard bar graph
+    if not triad_df.empty and not benchmark_update_df.empty:
+        triad_time = triad_df['EndTime'].max()
+        benchmark_start_time = benchmark_update_df['StartTime'].min()
+        sourcing_time_difference = (benchmark_start_time - triad_time).total_seconds() / 3600
+
+        all_jobs_df = df_30_days[df_30_days['JobName'].str.match(r'^[1-9]\.')]
+        all_jobs_time = (all_jobs_df['EndTime'].max() - all_jobs_df['StartTime'].min()).total_seconds() / 3600
+        benchmark_time = (benchmark_update_df['EndTime'] - benchmark_update_df['StartTime']).dt.total_seconds().mean() / 3600
+
+        fig_time_diff_main = go.Figure()
+        fig_time_diff_main.add_trace(go.Bar(
+            x=['All Jobs', 'Sourcing Job', 'Benchmark Update'],
+            y=[all_jobs_time, sourcing_time_difference, benchmark_time],
+            marker=dict(color=['#1f77b4', '#ff7f0e', '#2ca02c']),
+            text=[f"{all_jobs_time:.2f} hours", f"{sourcing_time_difference:.2f} hours", f"{benchmark_time:.2f} hours"],
+            textposition='auto'
+        ))
+        fig_time_diff_main.update_layout(
+            title='Time Difference Analysis',
+            xaxis_title='Job Type',
+            yaxis_title='Time (hours)',
+            hovermode='x unified',
+            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+    else:
+        fig_time_diff_main = go.Figure()
+        fig_time_diff_main.add_trace(go.Bar(
+            x=['All Jobs', 'Sourcing Job', 'Benchmark Update'],
+            y=[0, 0, 0],
+            marker=dict(color=['#1f77b4', '#ff7f0e', '#2ca02c']),
+            text=['No Data', 'No Data', 'No Data'],
+            textposition='auto'
+        ))
+        fig_time_diff_main.update_layout(
+            title='Time Difference Analysis',
+            xaxis_title='Job Type',
+            yaxis_title='Time (hours)',
+            hovermode='x unified',
+            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
 
     # Calculate average job duration per job
     df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate']).dt.strftime('%Y-%m-%d')
@@ -552,7 +538,7 @@ def update_dashboard(selected_date, selected_status):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_sourcing_time, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
+    return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery, fig_time_diff_main
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
@@ -703,5 +689,5 @@ def main():
     except KeyboardInterrupt:
         pass
 
-if __name__ == '__main__':
+if __name__ == '__':
     main()
