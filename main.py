@@ -80,7 +80,7 @@ def fetch_data(selected_date):
     """
     df = pd.read_sql(query, conn)
 
-    query_30_days = f"""
+    query_30_days = """
     SELECT 
         CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
         JSH.Status,
@@ -91,7 +91,7 @@ def fetch_data(selected_date):
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE CONVERT(varchar, JSH.StartTime, 23) = '{selected_date}'
+    WHERE JSH.StartTime >= DATEADD(day, -30, GETDATE())
     """
     df_30_days = pd.read_sql(query_30_days, conn)
 
@@ -409,7 +409,7 @@ def update_dashboard(selected_date, selected_status):
     # Exclude "Benchmark Update" from failure trend
     df_failed = df_30_days[(df_30_days['Status'] == 'Failed') & (df_30_days['JobName'] != '20. Benchmark Update')]
     failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
-    fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend for Selected Date', 
+    fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
     fig_trend.update_layout(
         bargap=0.4,
@@ -447,30 +447,6 @@ def update_dashboard(selected_date, selected_status):
 
         merged_df = merged_df.sort_values('ProcessingDate', ascending=False)  # Ensure the dates are sorted in descending order
 
-        fig_time_diff = go.Figure()
-        fig_time_diff.add_trace(go.Scatter(
-            x=merged_df['ProcessingDate'],
-            y=merged_df['TimeDifference'],
-            mode='lines+markers',
-            name='Time Difference',
-            line=dict(color='blue'),
-            marker=dict(size=8)
-        ))
-        fig_time_diff.update_layout(
-            title='Time Difference between TRIAD and Benchmark Update Jobs for Selected Date',
-            xaxis_title='Processing Date',
-            yaxis_title='Time Difference (hours)',
-            hovermode='x unified',
-            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis=dict(
-                type='category',
-                tickformat='%Y-%m-%d'
-            ),
-            yaxis=dict(
-                rangemode='tozero'
-            )
-        )
-
         # Create the table for the last 5 days, including the selected date
         last_5_days_df = merged_df.drop_duplicates(subset=['ProcessingDate']).head(5)
         if selected_date not in last_5_days_df['ProcessingDate'].values:
@@ -489,6 +465,31 @@ def update_dashboard(selected_date, selected_status):
             html.Thead(html.Tr([html.Th("Processing Date"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
             html.Tbody(table_rows)
         ], bordered=True, striped=True, hover=True)
+
+        # Time difference for main dashboard bar graph for last 5 days
+        main_time_diff_data = []
+        for date in last_5_days_df['ProcessingDate'].unique():
+            triad_time = triad_df[triad_df['ProcessingDate'] == date]['EndTime'].max()
+            benchmark_start_time = benchmark_update_df[benchmark_update_df['ProcessingDate'] == date]['StartTime'].min()
+            sourcing_time_difference = (benchmark_start_time - triad_time).total_seconds() / 3600
+
+            all_jobs_df = df_30_days[(df_30_days['ProcessingDate'] == date) & (df_30_days['JobName'].str.match(r'^[1-9]\.'))]
+            all_jobs_time = (all_jobs_df['EndTime'].max() - all_jobs_df['StartTime'].min()).total_seconds() / 3600
+            benchmark_time = (benchmark_update_df[benchmark_update_df['ProcessingDate'] == date]['EndTime'] - benchmark_update_df[benchmark_update_df['ProcessingDate'] == date]['StartTime']).dt.total_seconds().mean() / 3600
+
+            main_time_diff_data.append({'ProcessingDate': date, 'Type': 'All Jobs', 'Time': all_jobs_time})
+            main_time_diff_data.append({'ProcessingDate': date, 'Type': 'Sourcing Job', 'Time': sourcing_time_difference})
+            main_time_diff_data.append({'ProcessingDate': date, 'Type': 'Benchmark Update', 'Time': benchmark_time})
+
+        main_time_diff_df = pd.DataFrame(main_time_diff_data)
+
+        fig_time_diff_main = px.bar(main_time_diff_df, x='ProcessingDate', y='Time', color='Type', title='Time Difference Analysis for Last 5 Days', barmode='group')
+        fig_time_diff_main.update_layout(
+            xaxis_title='Processing Date',
+            yaxis_title='Time (hours)',
+            hovermode='x unified',
+            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
     else:
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
         time_difference_table = dbc.Table([
@@ -498,32 +499,6 @@ def update_dashboard(selected_date, selected_status):
             ])
         ], bordered=True, striped=True, hover=True)
 
-    # Time difference for main dashboard bar graph
-    if not triad_df.empty and not benchmark_update_df.empty:
-        triad_time = triad_df['EndTime'].max()
-        benchmark_start_time = benchmark_update_df['StartTime'].min()
-        sourcing_time_difference = (benchmark_start_time - triad_time).total_seconds() / 3600
-
-        all_jobs_df = df_30_days[df_30_days['JobName'].str.match(r'^[1-9]\.')]
-        all_jobs_time = (all_jobs_df['EndTime'].max() - all_jobs_df['StartTime'].min()).total_seconds() / 3600
-        benchmark_time = (benchmark_update_df['EndTime'] - benchmark_update_df['StartTime']).dt.total_seconds().mean() / 3600
-
-        fig_time_diff_main = go.Figure()
-        fig_time_diff_main.add_trace(go.Bar(
-            x=['All Jobs', 'Sourcing Job', 'Benchmark Update'],
-            y=[all_jobs_time, sourcing_time_difference, benchmark_time],
-            marker=dict(color=['#1f77b4', '#ff7f0e', '#2ca02c']),
-            text=[f"{all_jobs_time:.2f} hours", f"{sourcing_time_difference:.2f} hours", f"{benchmark_time:.2f} hours"],
-            textposition='auto'
-        ))
-        fig_time_diff_main.update_layout(
-            title='Time Difference Analysis',
-            xaxis_title='Job Type',
-            yaxis_title='Time (hours)',
-            hovermode='x unified',
-            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        )
-    else:
         fig_time_diff_main = go.Figure()
         fig_time_diff_main.add_trace(go.Bar(
             x=['All Jobs', 'Sourcing Job', 'Benchmark Update'],
