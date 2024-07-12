@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -42,6 +42,17 @@ def get_last_business_day():
             last_business_day -= timedelta(days=1)
     
     return last_business_day
+
+# Function to get the last 5 business days
+def get_last_5_business_days(selected_date):
+    selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
+    business_days = []
+    current_day = selected_date_obj
+    while len(business_days) < 5:
+        if current_day.weekday() < 5:  # Monday to Friday are business days
+            business_days.append(current_day.strftime('%Y-%m-%d'))
+        current_day -= timedelta(days=1)
+    return business_days
 
 # Get the default date
 default_date = get_last_business_day().strftime('%Y-%m-%d')
@@ -450,16 +461,11 @@ def update_dashboard(selected_date, selected_status):
         merged_df = merged_df.sort_values('ProcessingDate', ascending=False)  # Ensure the dates are sorted in descending order
 
         # Create the table for the last 5 business days, including the selected date
-        last_5_business_days = merged_df.drop_duplicates(subset=['ProcessingDate'])
-        last_5_business_days = last_5_business_days[~last_5_business_days['ProcessingDate'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d').weekday() >= 5)]
-        last_5_business_days = last_5_business_days.head(5)
-        
-        if selected_date not in last_5_business_days['ProcessingDate'].values:
-            selected_date_row = merged_df[merged_df['ProcessingDate'] == selected_date].head(1)
-            last_5_business_days = pd.concat([selected_date_row, last_5_business_days]).drop_duplicates(subset=['ProcessingDate']).head(5)
+        last_5_business_days = get_last_5_business_days(selected_date)
+        last_5_business_days_df = merged_df[merged_df['ProcessingDate'].isin(last_5_business_days)]
 
         table_rows = []
-        for index, row in last_5_business_days.iterrows():
+        for index, row in last_5_business_days_df.iterrows():
             row_class = 'table-success' if row['ProcessingDate'] == selected_date else ''
             table_rows.append(html.Tr([
                 html.Td(row['ProcessingDate']),
@@ -473,7 +479,7 @@ def update_dashboard(selected_date, selected_status):
 
         # Time difference for main dashboard bar graph for last 5 business days
         main_time_diff_data = []
-        for date in last_5_business_days['ProcessingDate'].unique():
+        for date in last_5_business_days:
             triad_time = triad_df[triad_df['ProcessingDate'] == date]['EndTime'].max()
             benchmark_start_time = benchmark_update_df[benchmark_update_df['ProcessingDate'] == date]['StartTime'].min()
             sourcing_time_difference = (benchmark_start_time - triad_time).total_seconds() / 3600
