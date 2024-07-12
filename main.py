@@ -122,8 +122,8 @@ def fetch_data(selected_date):
 # Fetch initial data
 df, df_30_days, df_job_duration, df_unlock_online = fetch_data(default_date)
 
-# Initialize the Dash app with Bootstrap CSS
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], assets_folder='assets')
+# Initialize the Dash app with Bootstrap CSS and suppress callback exceptions
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], assets_folder='assets', suppress_callback_exceptions=True)
 
 # Set custom HTML template
 app.index_string = open('templates/layout.html').read()
@@ -268,7 +268,6 @@ app.layout = dbc.Container([
 @app.callback(
     [Output('unlock-online-table', 'children'),
      Output('job-table-container', 'children'),
-     Output('status-dropdown', 'options'),
      Output('status-bar-graph', 'figure'),
      Output('failure-trend-graph', 'figure'),
      Output('time-difference-graph', 'figure'),
@@ -277,10 +276,9 @@ app.layout = dbc.Container([
      Output('performance-metrics-graph', 'figure'),
      Output('anomaly-detection-graph', 'figure'),
      Output('time-to-recovery-graph', 'figure')],
-    [Input('date-picker-table', 'date'),
-     Input('status-dropdown', 'value')]
+    [Input('date-picker-table', 'date')]
 )
-def update_dashboard(selected_date, selected_status):
+def update_dashboard(selected_date):
     now = datetime.now()
     selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
     
@@ -306,7 +304,7 @@ def update_dashboard(selected_date, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_job_duration, df_unlock_online = fetch_data(selected_date)
 
@@ -317,7 +315,7 @@ def update_dashboard(selected_date, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -329,8 +327,6 @@ def update_dashboard(selected_date, selected_status):
     job_status_options = [{'label': status, 'value': status} for status in df['Status'].unique()]
 
     filtered_df = df
-    if selected_status:
-        filtered_df = filtered_df[filtered_df['Status'] == selected_status]
 
     job_table_header = [html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], className='bg-primary text-white'))]
     job_table_body = [html.Tbody([html.Tr([html.Td(filtered_df.iloc[i][col]) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']]) for i in range(len(filtered_df))])]
@@ -474,7 +470,7 @@ def update_dashboard(selected_date, selected_status):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return unlock_online_table, job_table, job_status_options, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
+    return unlock_online_table, job_table, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
