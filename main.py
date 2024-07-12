@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options as Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -145,7 +145,7 @@ app.layout = dbc.Container([
             html.I(className="fa fa-calendar", id="calendar-icon", style={"margin-left": "10px"}),
             dbc.Tooltip("Select a date", target="calendar-icon")
         ], width='auto', className='d-flex justify-content-end align-items-center', xs=12, sm=12, md='auto')
-    ], className='border mb-3 align-items-center'),
+    ], className='border mb-3 align-items-center justify-content-center'),
     dbc.Tabs([
         dbc.Tab(label='Main Dashboard', tab_id='main-dashboard', children=[
             dbc.Row([
