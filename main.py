@@ -199,6 +199,15 @@ app.layout = dbc.Container([
             ], className='border'),
             dbc.Row([
                 dbc.Col([
+                    dcc.Loading(
+                        id="loading-sourcing-time-bar-graph",
+                        type="default",
+                        children=dcc.Graph(id='sourcing-time-bar-graph', className='fade-in')
+                    )
+                ], width=12)
+            ], className='border'),
+            dbc.Row([
+                dbc.Col([
                     html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3 pulse", style={'width': '200px'}),
                     dbc.Tooltip("Send Dashboard via Email", target="send-email-button")
                 ], width=12, className='d-flex justify-content-center')
@@ -280,6 +289,7 @@ app.layout = dbc.Container([
      Output('status-dropdown', 'options'),
      Output('status-bar-graph', 'figure'),
      Output('failure-trend-graph', 'figure'),
+     Output('sourcing-time-bar-graph', 'figure'),
      Output('time-difference-graph', 'figure'),
      Output('time-difference-table', 'children'),
      Output('job-duration-graph', 'figure'),
@@ -315,7 +325,7 @@ def update_dashboard(selected_date, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, [], empty_fig, empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_job_duration, df_unlock_online = fetch_data(selected_date)
 
@@ -326,7 +336,7 @@ def update_dashboard(selected_date, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, [], empty_fig, empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -486,7 +496,55 @@ def update_dashboard(selected_date, selected_status):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
+    # Sourcing Job Time Calculation
+    lockbox_to_triad_df = df_30_days[(df_30_days['JobName'] == '1. Lockbox KEF') | (df_30_days['JobName'] == '18. TRIAD')]
+    if not lockbox_to_triad_df.empty:
+        lockbox_to_triad_df['DurationHours'] = (lockbox_to_triad_df['EndTime'] - lockbox_to_triad_df['StartTime']).dt.total_seconds() / 3600
+        lockbox_to_triad_duration = lockbox_to_triad_df.groupby('ProcessingDate')['DurationHours'].sum().reset_index()
+    else:
+        lockbox_to_triad_duration = pd.DataFrame(columns=['ProcessingDate', 'DurationHours'])
+
+    sourcing_duration = (benchmark_update_df['StartTime'] - triad_df['EndTime']).dt.total_seconds() / 3600
+    benchmark_update_duration = (benchmark_update_df['EndTime'] - benchmark_update_df['StartTime']).dt.total_seconds() / 3600
+
+    sourcing_time_data = {
+        'ProcessingDate': benchmark_update_df['ProcessingDate'],
+        'Lockbox to TRIAD': lockbox_to_triad_duration['DurationHours'],
+        'Sourcing': sourcing_duration,
+        'Benchmark Update': benchmark_update_duration
+    }
+
+    sourcing_time_df = pd.DataFrame(sourcing_time_data).dropna().tail(5)
+
+    fig_sourcing_time = go.Figure(data=[
+        go.Bar(
+            name='Lockbox to TRIAD',
+            x=sourcing_time_df['ProcessingDate'],
+            y=sourcing_time_df['Lockbox to TRIAD'],
+            marker=dict(color='blue')
+        ),
+        go.Bar(
+            name='Sourcing',
+            x=sourcing_time_df['ProcessingDate'],
+            y=sourcing_time_df['Sourcing'],
+            marker=dict(color='orange')
+        ),
+        go.Bar(
+            name='Benchmark Update',
+            x=sourcing_time_df['ProcessingDate'],
+            y=sourcing_time_df['Benchmark Update'],
+            marker=dict(color='green')
+        )
+    ])
+    fig_sourcing_time.update_layout(
+        barmode='group',
+        title='Sourcing Job Time for Last 5 Business Days',
+        xaxis_title='Processing Date',
+        yaxis_title='Duration (hours)',
+        hovermode='x unified'
+    )
+
+    return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_sourcing_time, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
