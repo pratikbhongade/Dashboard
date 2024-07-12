@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options as Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -485,12 +485,13 @@ def update_dashboard(selected_date, selected_status):
             sourcing_time_difference = (benchmark_start_time - triad_time).total_seconds() / 3600
 
             all_jobs_df = df_30_days[(df_30_days['ProcessingDate'] == date) & (df_30_days['JobName'].str.match(r'^[1-9]\.'))]
-            all_jobs_time = (all_jobs_df['EndTime'].max() - all_jobs_df['StartTime'].min()).total_seconds() / 3600
-            benchmark_time = (benchmark_update_df[benchmark_update_df['ProcessingDate'] == date]['EndTime'] - benchmark_update_df[benchmark_update_df['ProcessingDate'] == date]['StartTime']).dt.total_seconds().mean() / 3600
+            if not all_jobs_df.empty:
+                all_jobs_time = (all_jobs_df['EndTime'].max() - all_jobs_df['StartTime'].min()).total_seconds() / 3600
+                benchmark_time = (benchmark_update_df[benchmark_update_df['ProcessingDate'] == date]['EndTime'] - benchmark_update_df[benchmark_update_df['ProcessingDate'] == date]['StartTime']).dt.total_seconds().mean() / 3600
 
-            main_time_diff_data.append({'ProcessingDate': date, 'Type': 'All Jobs', 'Time': all_jobs_time})
-            main_time_diff_data.append({'ProcessingDate': date, 'Type': 'Sourcing Job', 'Time': sourcing_time_difference})
-            main_time_diff_data.append({'ProcessingDate': date, 'Type': 'Benchmark Update', 'Time': benchmark_time})
+                main_time_diff_data.append({'ProcessingDate': date, 'Type': 'All Jobs', 'Time': all_jobs_time})
+                main_time_diff_data.append({'ProcessingDate': date, 'Type': 'Sourcing Job', 'Time': sourcing_time_difference})
+                main_time_diff_data.append({'ProcessingDate': date, 'Type': 'Benchmark Update', 'Time': benchmark_time})
 
         main_time_diff_df = pd.DataFrame(main_time_diff_data)
 
