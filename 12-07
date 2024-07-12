@@ -108,7 +108,7 @@ def fetch_data(selected_date):
     df_job_duration = pd.read_sql(query_job_duration, conn)
 
     query_unlock_online = f"""
-    SELECT JobName, CONVERT(datetime, EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS CompletionTime, Status 
+    SELECT JobName, CONVERT(datetime, EndTime) AS CompletionTime, Status 
     FROM Job_StatsVW 
     WHERE JobName = 'UnLock Online' 
     AND ProcessingDate = '{selected_date}'
@@ -148,7 +148,7 @@ app.layout = dbc.Container([
                     dbc.Card(
                         dbc.CardBody([
                             html.H4("Unlock Online Job", className='card-title'),
-                            html.Div(id='unlock-online-table')
+                            html.Div(id='unlock-online-table', style={'width': '50%'})
                         ]),
                         className='mb-4 border'
                     )
@@ -631,5 +631,5 @@ def main():
     except KeyboardInterrupt:
         pass
 
-if __name__=='__main__':
+if __name__=='main__':
     main()
