@@ -399,9 +399,13 @@ def update_dashboard(selected_date, selected_status):
     failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
+    fig_trend.update_layout(bargap=0.2)
 
     triad_df = df_30_days[df_30_days['JobName'] == '18. TRIAD']
     benchmark_update_df = df_30_days[df_30_days['JobName'] == '20. Benchmark Update']
+
+    # All jobs from 1. Lockbox KEF till 18. TRIAD
+    all_jobs_df = df_30_days[(df_30_days['JobName'] >= '1. Lockbox KEF') & (df_30_days['JobName'] <= '18. TRIAD')]
 
     if not triad_df.empty and not benchmark_update_df.empty:
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
@@ -410,12 +414,29 @@ def update_dashboard(selected_date, selected_status):
         merged_df = merged_df.sort_values('ProcessingDate', ascending=False)  # Ensure the dates are sorted in descending order
 
         fig_time_diff = go.Figure()
+        # Add lines for the three sets of data
+        fig_time_diff.add_trace(go.Scatter(
+            x=all_jobs_df['ProcessingDate'],
+            y=all_jobs_df['DurationMinutes'],
+            mode='lines+markers',
+            name='All Jobs from Lockbox KEF to TRIAD',
+            line=dict(color='green'),
+            marker=dict(size=8)
+        ))
         fig_time_diff.add_trace(go.Scatter(
             x=merged_df['ProcessingDate'],
             y=merged_df['TimeDifference'],
             mode='lines+markers',
-            name='Time Difference',
+            name='Sourcing Job Time Difference',
             line=dict(color='blue'),
+            marker=dict(size=8)
+        ))
+        fig_time_diff.add_trace(go.Scatter(
+            x=benchmark_update_df['ProcessingDate'],
+            y=benchmark_update_df['DurationMinutes'],
+            mode='lines+markers',
+            name='Benchmark Update',
+            line=dict(color='red'),
             marker=dict(size=8)
         ))
         fig_time_diff.update_layout(
