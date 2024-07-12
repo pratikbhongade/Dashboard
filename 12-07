@@ -108,7 +108,7 @@ def fetch_data(selected_date):
     df_job_duration = pd.read_sql(query_job_duration, conn)
 
     query_unlock_online = f"""
-    SELECT * 
+    SELECT JobName, CONVERT(datetime, EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS CompletionTime, Status 
     FROM Job_StatsVW 
     WHERE JobName = 'UnLock Online' 
     AND ProcessingDate = '{selected_date}'
@@ -327,10 +327,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     df['EndDate'] = pd.to_datetime(df['EndTime']).dt.strftime('%Y-%m-%d')
     df['EndTime'] = pd.to_datetime(df['EndTime']).dt.strftime('%I:%M:%S %p')
 
-    df_unlock_online['StartDate'] = pd.to_datetime(df_unlock_online['StartTime']).dt.strftime('%Y-%m-%d')
-    df_unlock_online['StartTime'] = pd.to_datetime(df_unlock_online['StartTime']).dt.strftime('%I:%M:%S %p')
-    df_unlock_online['EndDate'] = pd.to_datetime(df_unlock_online['EndTime']).dt.strftime('%Y-%m-%d')
-    df_unlock_online['EndTime'] = pd.to_datetime(df_unlock_online['EndTime']).dt.strftime('%I:%M:%S %p')
+    df_unlock_online['CompletionTime'] = pd.to_datetime(df_unlock_online['CompletionTime']).dt.strftime('%I:%M:%S %p')
 
     job_name_options = [{'label': job, 'value': job} for job in df['JobName'].unique()]
     job_status_options = [{'label': status, 'value': status} for status in df['Status'].unique()]
@@ -346,10 +343,10 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
     job_table = dbc.Table(job_table_header + job_table_body, striped=True, bordered=True, hover=True)
 
-    unlock_online_table_header = [html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], className='bg-primary text-white'))]
-    unlock_online_table_body = [html.Tbody([html.Tr([html.Td(df_unlock_online.iloc[i][col]) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']]) for i in range(len(df_unlock_online))])]
+    unlock_online_table_header = [html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'CompletionTime', 'Status']], className='bg-primary text-white'))]
+    unlock_online_table_body = [html.Tbody([html.Tr([html.Td(df_unlock_online.iloc[i][col]) for col in ['JobName', 'CompletionTime', 'Status']]) for i in range(len(df_unlock_online))])]
 
-    unlock_online_table = dbc.Table(unlock_online_table_header + unlock_online_table_body, striped=True, bordered=True, hover=True)
+    unlock_online_table = dbc.Table(unlock_online_table_header + unlock_online_table_body, striped=True, bordered=True, hover=True, className='table-dark')
 
     status_counts = df['Status'].value_counts().reset_index()
     status_counts.columns = ['Status', 'Count']
