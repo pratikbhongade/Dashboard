@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -131,10 +131,10 @@ app.index_string = open('templates/layout.html').read()
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px'), width='auto', xs=12, sm=12, md='auto'),
-        dbc.Col(html.H1("ASPIRE DASHBOARD", className='text-center mb-4', style={'font-weight': 'bold', 'color': '#2A3F5F', 'border-bottom': '1px solid #2A3F5F'}), width=True, className='d-flex justify-content-center align-items-center', xs=12, sm=12, md=8),
+        dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px', className='fade-in'), width='auto'),
+        dbc.Col(html.H1("ASPIRE DASHBOARD", className='text-center mb-4 fade-in', style={'font-weight': 'bold', 'color': '#2A3F5F', 'border-bottom': '1px solid #2A3F5F'}), width=True, className='d-flex justify-content-center align-items-center'),
         dbc.Col([
-            html.Div("Pick a date 📆", className='text-center mb-2', style={'font-weight': 'bold'}),
+            html.Div("Pick a date 📆", className='text-center mb-2 fade-in', style={'font-weight': 'bold'}),
             dcc.DatePickerSingle(
                 id='date-picker-table',
                 display_format='YYYY-MM-DD',
@@ -144,8 +144,8 @@ app.layout = dbc.Container([
             ),
             html.I(className="fa fa-calendar", id="calendar-icon", style={"margin-left": "10px"}),
             dbc.Tooltip("Select a date", target="calendar-icon")
-        ], width='auto', className='d-flex justify-content-end align-items-center', xs=12, sm=12, md='auto')
-    ], className='border mb-3 align-items-center justify-content-center'),
+        ], width='auto', className='d-flex justify-content-end align-items-center fade-in')
+    ], className='border mb-3 align-items-center justify-content-center slide-in'),
     dbc.Tabs([
         dbc.Tab(label='Main Dashboard', tab_id='main-dashboard', children=[
             dbc.Row([
@@ -153,9 +153,13 @@ app.layout = dbc.Container([
                     dbc.Card(
                         dbc.CardBody([
                             html.H4("Unlock Online Job", className='card-title'),
-                            html.Div(id='unlock-online-table', style={'width': '50%'})
+                            dcc.Loading(
+                                id="loading-unlock-online",
+                                type="default",
+                                children=html.Div(id='unlock-online-table', style={'width': '40%'}, className='slide-in')
+                            )
                         ]),
-                        className='mb-4 border'
+                        className='mb-4 border animated-card'
                     )
                 ], width=12)
             ], className='border mb-3'),
@@ -165,7 +169,7 @@ app.layout = dbc.Container([
                         id='job-name-dropdown',
                         options=[],
                         placeholder="Select a Job Name",
-                        className='mb-4'
+                        className='mb-4 slide-in'
                     )
                 ], width=6),
                 dbc.Col([
@@ -173,64 +177,100 @@ app.layout = dbc.Container([
                         id='status-dropdown',
                         options=[],
                         placeholder="Select Job Status",
-                        className='mb-4'
+                        className='mb-4 slide-in'
                     )
                 ], width=6)
             ], className='border mb-3'),
             dbc.Row([
                 dbc.Col([
-                    html.Div(id='job-table-container')
+                    dcc.Loading(
+                        id="loading-job-table",
+                        type="default",
+                        children=html.Div(id='job-table-container', className='slide-in')
+                    )
                 ], width=12)
             ], className='border'),
             dbc.Row([
                 dbc.Col([
-                    dcc.Graph(id='status-bar-graph')
+                    dcc.Loading(
+                        id="loading-status-bar-graph",
+                        type="default",
+                        children=dcc.Graph(id='status-bar-graph', className='fade-in')
+                    )
                 ], width=12)
             ], className='border'),
             dbc.Row([
                 dbc.Col([
-                    dcc.Graph(id='failure-trend-graph')
+                    dcc.Loading(
+                        id="loading-failure-trend-graph",
+                        type="default",
+                        children=dcc.Graph(id='failure-trend-graph', className='fade-in')
+                    )
                 ], width=12)
             ], className='border'),
             dbc.Row([
                 dbc.Col([
-                    dcc.Graph(id='time-difference-graph')
+                    dcc.Loading(
+                        id="loading-time-difference-graph",
+                        type="default",
+                        children=dcc.Graph(id='time-difference-graph', className='fade-in')
+                    )
                 ], width=9),
                 dbc.Col([
-                    html.Div(id='time-difference-table', style={'font-size': '14px'})
+                    dcc.Loading(
+                        id="loading-time-difference-table",
+                        type="default",
+                        children=html.Div(id='time-difference-table', style={'font-size': '14px'}, className='fade-in')
+                    )
                 ], width=3)
             ], className='border'),
             dbc.Row([
                 dbc.Col([
-                    html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3")
+                    html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3 pulse")
                 ], width=12, className='d-flex justify-content-center')
             ], className='border mt-3')
         ]),
         dbc.Tab(label='Job Duration Analysis', tab_id='job-duration', children=[
             dbc.Row([
                 dbc.Col([
-                    dcc.Graph(id='job-duration-graph')
+                    dcc.Loading(
+                        id="loading-job-duration-graph",
+                        type="default",
+                        children=dcc.Graph(id='job-duration-graph', className='fade-in')
+                    )
                 ], width=12)
             ], className='border mt-3')
         ]),
         dbc.Tab(label='Performance Metrics', tab_id='performance-metrics', children=[
             dbc.Row([
                 dbc.Col([
-                    dcc.Graph(id='performance-metrics-graph')
+                    dcc.Loading(
+                        id="loading-performance-metrics-graph",
+                        type="default",
+                        children=dcc.Graph(id='performance-metrics-graph', className='fade-in')
+                    )
                 ], width=12)
             ], className='border mt-3')
         ]),
         dbc.Tab(label='Anomaly Detection', tab_id='anomaly-detection', children=[
             dbc.Row([
                 dbc.Col([
-                    dcc.Graph(id='anomaly-detection-graph')
+                    dcc.Loading(
+                        id="loading-anomaly-detection-graph",
+                        type="default",
+                        children=dcc.Graph(id='anomaly-detection-graph', className='fade-in')
+                    )
                 ], width=12)
             ], className='border mt-3')
         ]),
         dbc.Tab(label='Time to Recovery', tab_id='time-to-recovery', children=[
             dbc.Row([
                 dbc.Col([
-                    dcc.Graph(id='time-to-recovery-graph')
+                    dcc.Loading(
+                        id="loading-time-to-recovery-graph",
+                        type="default",
+                        children=dcc.Graph(id='time-to-recovery-graph', className='fade-in')
+                    )
                 ], width=12)
             ], className='border mt-3')
         ])
@@ -268,19 +308,19 @@ def update_dashboard(selected_date, selected_job, selected_status):
         if selected_date_obj.weekday() >= 5:
             message = html.Div(
                 [
-                    html.H4("No data available due to holidays or weekends", className='text-center text-danger')
+                    html.H4("No data available due to holidays or weekends", className='text-center text-danger slide-in')
                 ]
             )
         elif selected_date_obj > now:
             message = html.Div(
                 [
-                    html.H4("Batch yet to start", className='text-center text-danger')
+                    html.H4("Batch yet to start", className='text-center text-danger slide-in')
                 ]
             )
         else:
             message = html.Div(
                 [
-                    html.H4("Batch yet to start", className='text-center text-danger')
+                    html.H4("Batch yet to start", className='text-center text-danger slide-in')
                 ]
             )
 
@@ -292,7 +332,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     if df.empty:
         message = html.Div(
             [
-                html.H4("No Data Available", className='text-center text-danger')
+                html.H4("No Data Available", className='text-center text-danger slide-in')
             ]
         )
         empty_fig = px.bar()
