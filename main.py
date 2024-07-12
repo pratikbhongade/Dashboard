@@ -415,10 +415,10 @@ def update_dashboard(selected_date, selected_status):
 
     triad_df = df_30_days[df_30_days['JobName'] == '18. TRIAD']
     benchmark_update_df = df_30_days[df_30_days['JobName'] == '20. Benchmark Update']
-    
+    lockbox_kef_df = df_30_days[df_30_days['JobName'] == '1. Lockbox KEF']
     all_jobs_df = df_30_days[(df_30_days['JobName'] >= '1. Lockbox KEF') & (df_30_days['JobName'] <= '18. TRIAD')]
 
-    if not triad_df.empty and not benchmark_update_df.empty and not all_jobs_df.empty:
+    if not triad_df.empty and not benchmark_update_df.empty and not lockbox_kef_df.empty:
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
         merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
@@ -468,13 +468,15 @@ def update_dashboard(selected_date, selected_status):
         ], bordered=True, striped=True, hover=True)
 
         # Calculate the time taken for the three stages: Lockbox to TRIAD, Sourcing Job, and Benchmark Update
-        lockbox_to_triad_duration = all_jobs_df.groupby('ProcessingDate').apply(lambda x: (x['EndTime'].max() - x['StartTime'].min()).total_seconds() / 3600).reset_index(name='Lockbox to TRIAD')
-        sourcing_duration = merged_df.apply(lambda x: (x['StartTime_Benchmark'] - x['EndTime_TRIAD']).total_seconds() / 3600, axis=1)
-        benchmark_duration = merged_df.apply(lambda x: (x['EndTime_Benchmark'] - x['StartTime_Benchmark']).total_seconds() / 3600, axis=1)
+        lockbox_to_triad_df = pd.merge(lockbox_kef_df, triad_df, on='ProcessingDate', suffixes=('_Lockbox', '_TRIAD'))
+        lockbox_to_triad_df['DurationHours'] = (lockbox_to_triad_df['EndTime_TRIAD'] - lockbox_to_triad_df['StartTime_Lockbox']).dt.total_seconds() / 3600
+
+        sourcing_duration = (benchmark_update_df['StartTime'] - triad_df['EndTime']).dt.total_seconds() / 3600
+        benchmark_duration = (benchmark_update_df['EndTime'] - benchmark_update_df['StartTime']).dt.total_seconds() / 3600
 
         sourcing_time_df = pd.DataFrame({
-            'ProcessingDate': merged_df['ProcessingDate'],
-            'Lockbox to TRIAD': lockbox_to_triad_duration['Lockbox to TRIAD'],
+            'ProcessingDate': benchmark_update_df['ProcessingDate'],
+            'Lockbox to TRIAD': lockbox_to_triad_df['DurationHours'],
             'Sourcing': sourcing_duration,
             'Benchmark Update': benchmark_duration
         }).tail(5)
