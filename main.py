@@ -497,10 +497,11 @@ def update_dashboard(selected_date, selected_status):
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
     # Sourcing Job Time Calculation
-    lockbox_to_triad_df = df_30_days[(df_30_days['JobName'] == '1. Lockbox KEF') | (df_30_days['JobName'] == '18. TRIAD')]
-    if not lockbox_to_triad_df.empty:
-        lockbox_to_triad_df['DurationHours'] = (lockbox_to_triad_df['EndTime'] - lockbox_to_triad_df['StartTime']).dt.total_seconds() / 3600
-        lockbox_to_triad_duration = lockbox_to_triad_df.groupby('ProcessingDate')['DurationHours'].sum().reset_index()
+    lockbox_kef_df = df_30_days[df_30_days['JobName'] == '1. Lockbox KEF']
+    if not lockbox_kef_df.empty and not triad_df.empty:
+        lockbox_to_triad_df = pd.merge(lockbox_kef_df, triad_df, on='ProcessingDate', suffixes=('_Lockbox', '_TRIAD'))
+        lockbox_to_triad_df['DurationHours'] = (lockbox_to_triad_df['EndTime_TRIAD'] - lockbox_to_triad_df['StartTime_Lockbox']).dt.total_seconds() / 3600
+        lockbox_to_triad_duration = lockbox_to_triad_df[['ProcessingDate', 'DurationHours']]
     else:
         lockbox_to_triad_duration = pd.DataFrame(columns=['ProcessingDate', 'DurationHours'])
 
@@ -516,32 +517,29 @@ def update_dashboard(selected_date, selected_status):
 
     sourcing_time_df = pd.DataFrame(sourcing_time_data).dropna().tail(5)
 
-    fig_sourcing_time = go.Figure(data=[
-        go.Bar(
-            name='Lockbox to TRIAD',
-            x=sourcing_time_df['ProcessingDate'],
-            y=sourcing_time_df['Lockbox to TRIAD'],
-            marker=dict(color='blue')
-        ),
-        go.Bar(
-            name='Sourcing',
-            x=sourcing_time_df['ProcessingDate'],
-            y=sourcing_time_df['Sourcing'],
-            marker=dict(color='orange')
-        ),
-        go.Bar(
-            name='Benchmark Update',
-            x=sourcing_time_df['ProcessingDate'],
-            y=sourcing_time_df['Benchmark Update'],
-            marker=dict(color='green')
-        )
-    ])
+    fig_sourcing_time = go.Figure()
+    for _, row in sourcing_time_df.iterrows():
+        fig_sourcing_time.add_trace(go.Bar(
+            x=[row['Lockbox to TRIAD'], row['Sourcing'], row['Benchmark Update']],
+            y=[row['ProcessingDate']] * 3,
+            orientation='h',
+            text=['Lockbox to TRIAD', 'Sourcing', 'Benchmark Update'],
+            hoverinfo='text',
+            marker=dict(color=['blue', 'orange', 'green'])
+        ))
     fig_sourcing_time.update_layout(
-        barmode='group',
         title='Sourcing Job Time for Last 5 Business Days',
-        xaxis_title='Processing Date',
-        yaxis_title='Duration (hours)',
-        hovermode='x unified'
+        xaxis_title='Duration (hours)',
+        yaxis_title='Processing Date',
+        hovermode='closest',
+        barmode='stack',
+        legend=dict(title="Stages", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(
+            type='linear'
+        ),
+        yaxis=dict(
+            type='category'
+        )
     )
 
     return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_sourcing_time, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
