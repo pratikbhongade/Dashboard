@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -415,8 +415,10 @@ def update_dashboard(selected_date, selected_status):
 
     triad_df = df_30_days[df_30_days['JobName'] == '18. TRIAD']
     benchmark_update_df = df_30_days[df_30_days['JobName'] == '20. Benchmark Update']
+    
+    all_jobs_df = df_30_days[(df_30_days['JobName'] >= '1. Lockbox KEF') & (df_30_days['JobName'] <= '18. TRIAD')]
 
-    if not triad_df.empty and not benchmark_update_df.empty:
+    if not triad_df.empty and not benchmark_update_df.empty and not all_jobs_df.empty:
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
         merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
@@ -464,6 +466,56 @@ def update_dashboard(selected_date, selected_status):
             html.Thead(html.Tr([html.Th("Processing Date"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
             html.Tbody(table_rows)
         ], bordered=True, striped=True, hover=True)
+
+        # Calculate the time taken for the three stages: Lockbox to TRIAD, Sourcing Job, and Benchmark Update
+        lockbox_to_triad_duration = all_jobs_df.groupby('ProcessingDate').apply(lambda x: (x['EndTime'].max() - x['StartTime'].min()).total_seconds() / 3600).reset_index(name='Lockbox to TRIAD')
+        sourcing_duration = merged_df.apply(lambda x: (x['StartTime_Benchmark'] - x['EndTime_TRIAD']).total_seconds() / 3600, axis=1)
+        benchmark_duration = merged_df.apply(lambda x: (x['EndTime_Benchmark'] - x['StartTime_Benchmark']).total_seconds() / 3600, axis=1)
+
+        sourcing_time_df = pd.DataFrame({
+            'ProcessingDate': merged_df['ProcessingDate'],
+            'Lockbox to TRIAD': lockbox_to_triad_duration['Lockbox to TRIAD'],
+            'Sourcing': sourcing_duration,
+            'Benchmark Update': benchmark_duration
+        }).tail(5)
+
+        fig_sourcing_time = go.Figure()
+        fig_sourcing_time.add_trace(go.Bar(
+            x=sourcing_time_df['Lockbox to TRIAD'],
+            y=sourcing_time_df['ProcessingDate'],
+            orientation='h',
+            name='Lockbox to TRIAD',
+            marker=dict(color='blue')
+        ))
+        fig_sourcing_time.add_trace(go.Bar(
+            x=sourcing_time_df['Sourcing'],
+            y=sourcing_time_df['ProcessingDate'],
+            orientation='h',
+            name='Sourcing',
+            marker=dict(color='orange')
+        ))
+        fig_sourcing_time.add_trace(go.Bar(
+            x=sourcing_time_df['Benchmark Update'],
+            y=sourcing_time_df['ProcessingDate'],
+            orientation='h',
+            name='Benchmark Update',
+            marker=dict(color='green')
+        ))
+        fig_sourcing_time.update_layout(
+            title='Sourcing Job Time for Last 5 Business Days',
+            xaxis_title='Duration (hours)',
+            yaxis_title='Processing Date',
+            hovermode='x unified',
+            barmode='stack',
+            legend=dict(title="Stages", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            xaxis=dict(
+                type='linear'
+            ),
+            yaxis=dict(
+                type='category'
+            )
+        )
+
     else:
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
         time_difference_table = dbc.Table([
@@ -472,6 +524,8 @@ def update_dashboard(selected_date, selected_status):
                 html.Tr([html.Td("No Data"), html.Td("No Data")])
             ])
         ], bordered=True, striped=True, hover=True)
+
+        fig_sourcing_time = px.bar(title='No data available for Sourcing Job Time.')
 
     # Calculate average job duration per job
     df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate']).dt.strftime('%Y-%m-%d')
@@ -495,52 +549,6 @@ def update_dashboard(selected_date, selected_status):
     df_30_days['RecoveryTime'] = df_30_days.groupby('JobName')['EndTime'].diff().dt.total_seconds() / 3600
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
-
-    # Sourcing Job Time Calculation
-    lockbox_kef_df = df_30_days[df_30_days['JobName'] == '1. Lockbox KEF']
-    if not lockbox_kef_df.empty and not triad_df.empty:
-        lockbox_to_triad_df = pd.merge(lockbox_kef_df, triad_df, on='ProcessingDate', suffixes=('_Lockbox', '_TRIAD'))
-        lockbox_to_triad_df['DurationHours'] = (lockbox_to_triad_df['EndTime_TRIAD'] - lockbox_to_triad_df['StartTime_Lockbox']).dt.total_seconds() / 3600
-        lockbox_to_triad_duration = lockbox_to_triad_df[['ProcessingDate', 'DurationHours']]
-    else:
-        lockbox_to_triad_duration = pd.DataFrame(columns=['ProcessingDate', 'DurationHours'])
-
-    sourcing_duration = (benchmark_update_df['StartTime'] - triad_df['EndTime']).dt.total_seconds() / 3600
-    benchmark_update_duration = (benchmark_update_df['EndTime'] - benchmark_update_df['StartTime']).dt.total_seconds() / 3600
-
-    sourcing_time_data = {
-        'ProcessingDate': benchmark_update_df['ProcessingDate'],
-        'Lockbox to TRIAD': lockbox_to_triad_duration['DurationHours'],
-        'Sourcing': sourcing_duration,
-        'Benchmark Update': benchmark_update_duration
-    }
-
-    sourcing_time_df = pd.DataFrame(sourcing_time_data).dropna().tail(5)
-
-    fig_sourcing_time = go.Figure()
-    for _, row in sourcing_time_df.iterrows():
-        fig_sourcing_time.add_trace(go.Bar(
-            x=[row['Lockbox to TRIAD'], row['Sourcing'], row['Benchmark Update']],
-            y=[row['ProcessingDate']] * 3,
-            orientation='h',
-            text=['Lockbox to TRIAD', 'Sourcing', 'Benchmark Update'],
-            hoverinfo='text',
-            marker=dict(color=['blue', 'orange', 'green'])
-        ))
-    fig_sourcing_time.update_layout(
-        title='Sourcing Job Time for Last 5 Business Days',
-        xaxis_title='Duration (hours)',
-        yaxis_title='Processing Date',
-        hovermode='closest',
-        barmode='stack',
-        legend=dict(title="Stages", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        xaxis=dict(
-            type='linear'
-        ),
-        yaxis=dict(
-            type='category'
-        )
-    )
 
     return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_sourcing_time, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
 
