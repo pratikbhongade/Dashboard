@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options as Options
+from selenium.webdriver.chrome.options import Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -494,6 +494,7 @@ def update_dashboard(selected_date, selected_status):
                 main_time_diff_data.append({'ProcessingDate': date, 'Type': 'Benchmark Update', 'Time': benchmark_time})
 
         main_time_diff_df = pd.DataFrame(main_time_diff_data)
+        main_time_diff_df = main_time_diff_df[main_time_diff_df['Time'] > 0]  # Filter out rows with no time difference
 
         fig_time_diff_main = px.bar(main_time_diff_df, x='ProcessingDate', y='Time', color='Type', title='Time Difference Analysis for Last 5 Business Days', barmode='group')
         fig_time_diff_main.update_layout(
@@ -501,6 +502,26 @@ def update_dashboard(selected_date, selected_status):
             yaxis_title='Time (hours)',
             hovermode='x unified',
             legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            template='plotly_white',
+            plot_bgcolor='rgba(229,236,246,1)',
+            title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
+            xaxis=dict(
+                showgrid=True,
+                showline=False,
+                linewidth=1,
+                linecolor='black',
+                mirror=True,
+                gridcolor='lightgrey'
+            ),
+            yaxis=dict(
+                showgrid=True,
+                showline=False,
+                linewidth=1,
+                linecolor='black',
+                mirror=True,
+                gridcolor='lightgrey',
+            ),
+            font=dict(size=14)
         )
 
         # Line graph for the Time Difference tab
@@ -510,6 +531,26 @@ def update_dashboard(selected_date, selected_status):
             yaxis_title='Time Difference (hours)',
             hovermode='x unified',
             legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            template='plotly_white',
+            plot_bgcolor='rgba(229,236,246,1)',
+            title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
+            xaxis=dict(
+                showgrid=True,
+                showline=False,
+                linewidth=1,
+                linecolor='black',
+                mirror=True,
+                gridcolor='lightgrey'
+            ),
+            yaxis=dict(
+                showgrid=True,
+                showline=False,
+                linewidth=1,
+                linecolor='black',
+                mirror=True,
+                gridcolor='lightgrey',
+            ),
+            font=dict(size=14)
         )
 
     else:
@@ -535,6 +576,26 @@ def update_dashboard(selected_date, selected_status):
             yaxis_title='Time (hours)',
             hovermode='x unified',
             legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            template='plotly_white',
+            plot_bgcolor='rgba(229,236,246,1)',
+            title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
+            xaxis=dict(
+                showgrid=True,
+                showline=False,
+                linewidth=1,
+                linecolor='black',
+                mirror=True,
+                gridcolor='lightgrey'
+            ),
+            yaxis=dict(
+                showgrid=True,
+                showline=False,
+                linewidth=1,
+                linecolor='black',
+                mirror=True,
+                gridcolor='lightgrey',
+            ),
+            font=dict(size=14)
         )
 
     # Calculate average job duration per job
