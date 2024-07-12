@@ -125,13 +125,10 @@ df, df_30_days, df_job_duration, df_unlock_online = fetch_data(default_date)
 # Initialize the Dash app with Bootstrap CSS and suppress callback exceptions
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], assets_folder='assets', suppress_callback_exceptions=True)
 
-# Set custom HTML template
-app.index_string = open('templates/layout.html').read()
-
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px', className='fade-in'), width='auto'),
+        dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px', id='logo'), width='auto'),
         dbc.Col(html.H1("ASPIRE DASHBOARD", className='text-center mb-4 fade-in', style={'font-weight': 'bold', 'color': '#2A3F5F', 'border-bottom': '1px solid #2A3F5F'}), width=True, className='d-flex justify-content-center align-items-center'),
         dbc.Col([
             html.Div("Pick a date 📆", className='text-center mb-2 fade-in', style={'font-weight': 'bold'}),
@@ -143,8 +140,9 @@ app.layout = dbc.Container([
                 style={'font-weight': 'bold'}
             ),
             html.I(className="fa fa-calendar", id="calendar-icon", style={"margin-left": "10px"}),
-            dbc.Tooltip("Select a date", target="calendar-icon")
-        ], width='auto', className='d-flex justify-content-end align-items-center fade-in')
+        ], width='auto', className='d-flex justify-content-end align-items-center fade-in'),
+        dbc.Tooltip("Select a date", target="calendar-icon"),
+        dbc.Tooltip("Company Logo", target="logo")
     ], className='border mb-3 align-items-center justify-content-center slide-in'),
     dbc.Tabs([
         dbc.Tab(label='Main Dashboard', tab_id='main-dashboard', children=[
@@ -164,6 +162,15 @@ app.layout = dbc.Container([
                 ], width=12)
             ], className='border mb-3'),
             dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        dcc.Dropdown(
+                            id='status-dropdown',
+                            placeholder="Select Status",
+                            className='mb-4'
+                        )
+                    ], width=6),
+                ]),
                 dbc.Col([
                     dcc.Loading(
                         id="loading-job-table",
@@ -268,6 +275,7 @@ app.layout = dbc.Container([
 @app.callback(
     [Output('unlock-online-table', 'children'),
      Output('job-table-container', 'children'),
+     Output('status-dropdown', 'options'),
      Output('status-bar-graph', 'figure'),
      Output('failure-trend-graph', 'figure'),
      Output('time-difference-graph', 'figure'),
@@ -276,9 +284,10 @@ app.layout = dbc.Container([
      Output('performance-metrics-graph', 'figure'),
      Output('anomaly-detection-graph', 'figure'),
      Output('time-to-recovery-graph', 'figure')],
-    [Input('date-picker-table', 'date')]
+    [Input('date-picker-table', 'date'),
+     Input('status-dropdown', 'value')]
 )
-def update_dashboard(selected_date):
+def update_dashboard(selected_date, selected_status):
     now = datetime.now()
     selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
     
@@ -304,7 +313,7 @@ def update_dashboard(selected_date):
             )
 
         empty_fig = px.bar()
-        return message, message, empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_job_duration, df_unlock_online = fetch_data(selected_date)
 
@@ -315,7 +324,7 @@ def update_dashboard(selected_date):
             ]
         )
         empty_fig = px.bar()
-        return message, message, empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -324,9 +333,11 @@ def update_dashboard(selected_date):
 
     df_unlock_online['CompletionTime'] = pd.to_datetime(df_unlock_online['CompletionTime']).dt.strftime('%I:%M:%S %p')
 
-    job_status_options = [{'label': status, 'value': status} for status in df['Status'].unique()]
+    status_options = [{'label': status, 'value': status} for status in df['Status'].unique()]
 
     filtered_df = df
+    if selected_status:
+        filtered_df = filtered_df[filtered_df['Status'] == selected_status]
 
     job_table_header = [html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], className='bg-primary text-white'))]
     job_table_body = [html.Tbody([html.Tr([html.Td(filtered_df.iloc[i][col]) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']]) for i in range(len(filtered_df))])]
@@ -382,7 +393,9 @@ def update_dashboard(selected_date):
 
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate']).dt.strftime('%Y-%m-%d')
     df_30_days['DurationMinutes'] = (df_30_days['EndTime'] - df_30_days['StartTime']).dt.total_seconds() / 60.0
-    df_failed = df_30_days[df_30_days['Status'] == 'Failed']
+
+    # Exclude "Benchmark Update" from failure trend
+    df_failed = df_30_days[(df_30_days['Status'] == 'Failed') & (df_30_days['JobName'] != '20. Benchmark Update')]
     failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
@@ -470,7 +483,7 @@ def update_dashboard(selected_date):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return unlock_online_table, job_table, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
+    return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
