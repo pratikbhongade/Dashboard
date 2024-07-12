@@ -152,34 +152,16 @@ app.layout = dbc.Container([
                 dbc.Col([
                     dbc.Card(
                         dbc.CardBody([
-                            html.H4("Unlock Online Job", className='card-title'),
+                            html.H4("Aspire Unlock Online", className='card-title'),
                             dcc.Loading(
                                 id="loading-unlock-online",
                                 type="default",
-                                children=html.Div(id='unlock-online-table', style={'width': '40%'}, className='slide-in')
+                                children=html.Div(id='unlock-online-table', style={'width': '50%'}, className='slide-in')
                             )
                         ]),
                         className='mb-4 border animated-card'
                     )
                 ], width=12)
-            ], className='border mb-3'),
-            dbc.Row([
-                dbc.Col([
-                    dcc.Dropdown(
-                        id='job-name-dropdown',
-                        options=[],
-                        placeholder="Select a Job Name",
-                        className='mb-4 slide-in'
-                    )
-                ], width=6),
-                dbc.Col([
-                    dcc.Dropdown(
-                        id='status-dropdown',
-                        options=[],
-                        placeholder="Select Job Status",
-                        className='mb-4 slide-in'
-                    )
-                ], width=6)
             ], className='border mb-3'),
             dbc.Row([
                 dbc.Col([
@@ -226,7 +208,8 @@ app.layout = dbc.Container([
             ], className='border'),
             dbc.Row([
                 dbc.Col([
-                    html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3 pulse")
+                    html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3 pulse", style={'width': '200px'}),
+                    dbc.Tooltip("Send Dashboard via Email", target="send-email-button")
                 ], width=12, className='d-flex justify-content-center')
             ], className='border mt-3')
         ]),
@@ -285,7 +268,6 @@ app.layout = dbc.Container([
 @app.callback(
     [Output('unlock-online-table', 'children'),
      Output('job-table-container', 'children'),
-     Output('job-name-dropdown', 'options'),
      Output('status-dropdown', 'options'),
      Output('status-bar-graph', 'figure'),
      Output('failure-trend-graph', 'figure'),
@@ -296,10 +278,9 @@ app.layout = dbc.Container([
      Output('anomaly-detection-graph', 'figure'),
      Output('time-to-recovery-graph', 'figure')],
     [Input('date-picker-table', 'date'),
-     Input('job-name-dropdown', 'value'),
      Input('status-dropdown', 'value')]
 )
-def update_dashboard(selected_date, selected_job, selected_status):
+def update_dashboard(selected_date, selected_status):
     now = datetime.now()
     selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
     
@@ -325,7 +306,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, message, [], [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_job_duration, df_unlock_online = fetch_data(selected_date)
 
@@ -336,7 +317,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, message, [], [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -345,12 +326,9 @@ def update_dashboard(selected_date, selected_job, selected_status):
 
     df_unlock_online['CompletionTime'] = pd.to_datetime(df_unlock_online['CompletionTime']).dt.strftime('%I:%M:%S %p')
 
-    job_name_options = [{'label': job, 'value': job} for job in df['JobName'].unique()]
     job_status_options = [{'label': status, 'value': status} for status in df['Status'].unique()]
 
     filtered_df = df
-    if selected_job:
-        filtered_df = filtered_df[filtered_df['JobName'] == selected_job]
     if selected_status:
         filtered_df = filtered_df[filtered_df['Status'] == selected_status]
 
@@ -496,7 +474,7 @@ def update_dashboard(selected_date, selected_job, selected_status):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return unlock_online_table, job_table, job_name_options, job_status_options, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
+    return unlock_online_table, job_table, job_status_options, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
