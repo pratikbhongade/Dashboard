@@ -20,17 +20,17 @@ import base64
 from chatterbot import ChatBot
 from chatterbot.trainers import ChatterBotCorpusTrainer
 
-# Initialize ChatterBot
-chatbot = ChatBot("AspireBot")
-trainer = ChatterBotCorpusTrainer(chatbot)
-trainer.train("chatterbot.corpus.english")
-
 # Path to your logo image
 logo_path = 'C:\\Aspire_Dashboard\\Aspire.png'
 
 # Encode the image to base64
 with open(logo_path, 'rb') as f:
     logo_base64 = base64.b64encode(f.read()).decode('ascii')
+
+# Initialize the chatbot
+chatbot = ChatBot('AspireBot')
+trainer = ChatterBotCorpusTrainer(chatbot)
+trainer.train('chatterbot.corpus.english')
 
 # Function to get the last business day
 def get_last_business_day():
@@ -176,14 +176,12 @@ app.layout = dbc.Container([
                             )
                         ]),
                         className='mb-4 border animated-card'
-                    )
-                ], width=12),
-                dbc.Col([
-                    html.Button(
-                        "Chat with AspireBot",
+                    ),
+                    dbc.Button(
+                        html.I(className="fa fa-comments"),
                         id="open-chatbot",
-                        className="btn btn-primary",
-                        style={"position": "fixed", "bottom": "30px", "right": "30px", "z-index": "1000"}
+                        className="chatbot-widget",
+                        style={'border-radius': '50%', 'width': '60px', 'height': '60px', 'position': 'fixed', 'bottom': '30px', 'left': '30px'}
                     )
                 ], width=12)
             ], className='border mb-3'),
@@ -306,20 +304,20 @@ app.layout = dbc.Container([
         id='confirm-dialog',
         message='Email sent successfully!',
     ),
-    # Chatbot Modal
     dbc.Modal(
         [
-            dbc.ModalHeader("AspireBot"),
+            dbc.ModalHeader(dbc.ModalTitle("AspireBot")),
             dbc.ModalBody([
-                html.Div(id='chat-output', style={'height': '300px', 'overflowY': 'scroll', 'border': '1px solid #ccc', 'padding': '10px'}),
-                dcc.Input(id='chat-input', type='text', style={'width': '100%', 'margin-top': '10px'}, placeholder='Type a message...'),
+                dcc.Loading(
+                    id="loading-chat-output",
+                    type="default",
+                    children=html.Div(id='chat-output', style={'maxHeight': '300px', 'overflowY': 'auto', 'padding': '10px'})
+                ),
+                dcc.Input(id='chat-input', type='text', placeholder='Type your message here...', className='form-control', n_submit=0),
             ]),
-            dbc.ModalFooter(
-                dbc.Button("Close", id="close-chatbot", className="ml-auto")
-            ),
         ],
         id="chatbot-modal",
-        size="lg",
+        size="sm",
         is_open=False,
     )
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
@@ -651,6 +649,32 @@ def update_dashboard(selected_date, selected_status):
 
     return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery, fig_time_diff_main
 
+@app.callback(
+    Output("chatbot-modal", "is_open"),
+    [Input("open-chatbot", "n_clicks"), Input("chat-input", "n_submit")],
+    [State("chatbot-modal", "is_open")]
+)
+def toggle_chatbot_modal(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open
+
+@app.callback(
+    Output("chat-output", "children"),
+    [Input("chat-input", "n_submit")],
+    [State("chat-input", "value"), State("chat-output", "children")]
+)
+def update_chat_output(n_submit, message, chat_output):
+    if n_submit > 0:
+        response = chatbot.get_response(message)
+        new_message = html.Div([
+            html.Div(f"You: {message}", className='user-message'),
+            html.Div(f"AspireBot: {response}", className='bot-message')
+        ], className='chat-message')
+        chat_output.append(new_message)
+        return chat_output
+    return chat_output
+
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
     queue.put("Dash app stopped")
@@ -786,29 +810,6 @@ def handle_send_email(n_clicks, selected_date):
 
     return None, False
 
-# Chatbot callback
-@app.callback(
-    [Output('chat-output', 'children'), Output('chat-input', 'value')],
-    [Input('chat-input', 'n_submit')],
-    [State('chat-input', 'value'), State('chat-output', 'children')]
-)
-def update_chat(n_submit, user_input, chat_history):
-    if n_submit and user_input:
-        response = chatbot.get_response(user_input)
-        chat_history.append(html.Div(f"User: {user_input}", style={'text-align': 'right', 'color': 'blue'}))
-        chat_history.append(html.Div(f"AspireBot: {response}", style={'text-align': 'left', 'color': 'green'}))
-    return chat_history, ""
-
-@app.callback(
-    Output('chatbot-modal', 'is_open'),
-    [Input('open-chatbot', 'n_clicks'), Input('close-chatbot', 'n_clicks')],
-    [State('chatbot-modal', 'is_open')]
-)
-def toggle_chatbot_modal(open_clicks, close_clicks, is_open):
-    if open_clicks or close_clicks:
-        return not is_open
-    return is_open
-
 def main():
     driver, dash_process, queue = run_dashboard()
 
@@ -819,7 +820,7 @@ def main():
                 message = queue.get()
                 if message == "Dash app stopped":
                     break
-            time.clock=time.time()
+            time.sleep(1)
     except KeyboardInterrupt:
         pass
 
