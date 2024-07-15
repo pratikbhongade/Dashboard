@@ -20,9 +20,10 @@ import base64
 from chatterbot import ChatBot
 from chatterbot.trainers import ChatterBotCorpusTrainer
 
-# Ensure 'punkt' is downloaded
-import nltk
-nltk.download('punkt')
+# Initialize ChatterBot
+chatbot = ChatBot("AspireBot")
+trainer = ChatterBotCorpusTrainer(chatbot)
+trainer.train("chatterbot.corpus.english")
 
 # Path to your logo image
 logo_path = 'C:\\Aspire_Dashboard\\Aspire.png'
@@ -30,11 +31,6 @@ logo_path = 'C:\\Aspire_Dashboard\\Aspire.png'
 # Encode the image to base64
 with open(logo_path, 'rb') as f:
     logo_base64 = base64.b64encode(f.read()).decode('ascii')
-
-# Set up ChatterBot
-chatbot = ChatBot('AspireBot')
-trainer = ChatterBotCorpusTrainer(chatbot)
-trainer.train('chatterbot.corpus.english')
 
 # Function to get the last business day
 def get_last_business_day():
@@ -181,6 +177,14 @@ app.layout = dbc.Container([
                         ]),
                         className='mb-4 border animated-card'
                     )
+                ], width=12),
+                dbc.Col([
+                    html.Button(
+                        "Chat with AspireBot",
+                        id="open-chatbot",
+                        className="btn btn-primary",
+                        style={"position": "fixed", "bottom": "30px", "right": "30px", "z-index": "1000"}
+                    )
                 ], width=12)
             ], className='border mb-3'),
             dbc.Row([
@@ -302,14 +306,22 @@ app.layout = dbc.Container([
         id='confirm-dialog',
         message='Email sent successfully!',
     ),
-    dbc.Row([
-        dbc.Col([
-            html.H4("Chat with AspireBot", className='card-title'),
-            dcc.Input(id="chat-input", type="text", placeholder="Ask me anything...", style={'width': '100%'}),
-            html.Button('Submit', id='submit-chat', n_clicks=0, className="btn btn-primary mt-3 pulse", style={'width': '200px'}),
-            html.Div(id='chat-output', style={'margin-top': '20px', 'white-space': 'pre-line'})
-        ], width=12, className='d-flex justify-content-center')
-    ], className='border mt-3')
+    # Chatbot Modal
+    dbc.Modal(
+        [
+            dbc.ModalHeader("AspireBot"),
+            dbc.ModalBody([
+                html.Div(id='chat-output', style={'height': '300px', 'overflowY': 'scroll', 'border': '1px solid #ccc', 'padding': '10px'}),
+                dcc.Input(id='chat-input', type='text', style={'width': '100%', 'margin-top': '10px'}, placeholder='Type a message...'),
+            ]),
+            dbc.ModalFooter(
+                dbc.Button("Close", id="close-chatbot", className="ml-auto")
+            ),
+        ],
+        id="chatbot-modal",
+        size="lg",
+        is_open=False,
+    )
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
 # Callback to update the tables and dropdowns based on the selected date
@@ -774,16 +786,28 @@ def handle_send_email(n_clicks, selected_date):
 
     return None, False
 
+# Chatbot callback
 @app.callback(
-    Output('chat-output', 'children'),
-    [Input('submit-chat', 'n_clicks')],
-    [State('chat-input', 'value')]
+    [Output('chat-output', 'children'), Output('chat-input', 'value')],
+    [Input('chat-input', 'n_submit')],
+    [State('chat-input', 'value'), State('chat-output', 'children')]
 )
-def update_chat(n_clicks, value):
-    if n_clicks > 0 and value:
-        response = chatbot.get_response(value)
-        return f"User: {value}\n\nAspireBot: {response}"
-    return ""
+def update_chat(n_submit, user_input, chat_history):
+    if n_submit and user_input:
+        response = chatbot.get_response(user_input)
+        chat_history.append(html.Div(f"User: {user_input}", style={'text-align': 'right', 'color': 'blue'}))
+        chat_history.append(html.Div(f"AspireBot: {response}", style={'text-align': 'left', 'color': 'green'}))
+    return chat_history, ""
+
+@app.callback(
+    Output('chatbot-modal', 'is_open'),
+    [Input('open-chatbot', 'n_clicks'), Input('close-chatbot', 'n_clicks')],
+    [State('chatbot-modal', 'is_open')]
+)
+def toggle_chatbot_modal(open_clicks, close_clicks, is_open):
+    if open_clicks or close_clicks:
+        return not is_open
+    return is_open
 
 def main():
     driver, dash_process, queue = run_dashboard()
@@ -795,7 +819,7 @@ def main():
                 message = queue.get()
                 if message == "Dash app stopped":
                     break
-            time.time()
+            time.clock=time.time()
     except KeyboardInterrupt:
         pass
 
