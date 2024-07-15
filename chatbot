@@ -9,6 +9,15 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import os
+from PIL import Image
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options
+from io import BytesIO
+import time
+import win32com.client as win32
+from multiprocessing import Process, Queue
 
 # Path to your logo image
 logo_path = 'C:\\Aspire_Dashboard\\Aspire.png'
@@ -115,15 +124,6 @@ app.layout = dbc.Container([
                 ], width=12)
             ], className='border mb-3'),
             dbc.Row([
-                dbc.Col([
-                    html.Div([
-                        dcc.Dropdown(
-                            id='status-dropdown',
-                            placeholder="Select Status",
-                            className='mb-4'
-                        )
-                    ]),
-                ], width=6),
                 dbc.Col([
                     dcc.Loading(
                         id="loading-job-table",
@@ -247,7 +247,6 @@ app.layout = dbc.Container([
 @app.callback(
     [Output('unlock-online-table', 'children'),
      Output('job-table-container', 'children'),
-     Output('status-dropdown', 'options'),
      Output('status-bar-graph', 'figure'),
      Output('failure-trend-graph', 'figure'),
      Output('time-difference-graph', 'figure'),
@@ -286,7 +285,7 @@ def update_dashboard(selected_date, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df = fetch_data(selected_date)
 
@@ -297,7 +296,7 @@ def update_dashboard(selected_date, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -568,7 +567,7 @@ def update_dashboard(selected_date, selected_status):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery, fig_time_diff_main
+    return unlock_online_table, job_table, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery, fig_time_diff_main
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
