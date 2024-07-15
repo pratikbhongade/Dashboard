@@ -1,34 +1,14 @@
-import pyodbc
-import pandas as pd
 import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
+from chatterbot import ChatBot
+from chatterbot.trainers import ChatterBotCorpusTrainer
+import base64
 from datetime import datetime, timedelta
-import os
-from PIL import Image
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
-from io import BytesIO
-import time
-import win32com.client as win32
-from multiprocessing import Process, Queue
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import base64
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-# Load the chatbot model
-model_name = "meta-llama/Meta-Llama-3-8B"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)
-
-def generate_response(prompt):
-    inputs = tokenizer(prompt, return_tensors="pt")
-    outputs = model.generate(inputs.input_ids, max_length=500, num_return_sequences=1)
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return response
 
 # Path to your logo image
 logo_path = 'C:\\Aspire_Dashboard\\Aspire.png'
@@ -36,6 +16,11 @@ logo_path = 'C:\\Aspire_Dashboard\\Aspire.png'
 # Encode the image to base64
 with open(logo_path, 'rb') as f:
     logo_base64 = base64.b64encode(f.read()).decode('ascii')
+
+# Set up ChatterBot
+chatbot = ChatBot('AspireBot')
+trainer = ChatterBotCorpusTrainer(chatbot)
+trainer.train('chatterbot.corpus.english')
 
 # Function to get the last business day
 def get_last_business_day():
@@ -71,79 +56,24 @@ default_date = get_last_business_day().strftime('%Y-%m-%d')
 
 # Function to fetch data
 def fetch_data(selected_date):
-    conn_str = (
-        r'DRIVER={SQL Server};'
-        r'SERVER=SDC01ASRSQPD01S\PSQLINST01;'
-        r'DATABASE=ASPIRE;'
-        r'Trusted_Connection=yes;'
-    )
-    conn = pyodbc.connect(conn_str)
+    # Dummy data for demonstration
+    data = {
+        'JobName': ['Job A', 'Job B', 'Job C', '18. TRIAD', '20. Benchmark Update'],
+        'StartTime': ['2024-07-01 10:00:00', '2024-07-01 11:00:00', '2024-07-01 12:00:00', '2024-07-01 13:00:00', '2024-07-01 14:00:00'],
+        'EndTime': ['2024-07-01 10:30:00', '2024-07-01 11:30:00', '2024-07-01 12:30:00', '2024-07-01 13:30:00', '2024-07-01 14:30:00'],
+        'Status': ['Succeeded', 'Failed', 'Succeeded', 'Succeeded', 'Failed'],
+        'Message': ['All good', 'Error 1', 'All good', 'All good', 'Error 2']
+    }
+    df = pd.DataFrame(data)
+    df['StartTime'] = pd.to_datetime(df['StartTime'])
+    df['EndTime'] = pd.to_datetime(df['EndTime'])
+    df['ProcessingDate'] = df['StartTime'].dt.strftime('%Y-%m-%d')
+    df['DurationMinutes'] = (df['EndTime'] - df['StartTime']).dt.total_seconds() / 60.0
 
-    query = f"""
-    SELECT 
-        CASE 
-            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
-            ELSE CONVERT(varchar, JSH.StartTime, 23) 
-        END as ProcessingDate, 
-        JSJ.JobStreamJoboid as Joboid, 
-        JSJ.Name as JobName,
-        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime], 
-        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime], 
-        JSH.Status, 
-        JSH.Message 
-    FROM JobStreamTaskHistory JSH
-    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
-    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE 
-        CASE 
-            WHEN DATEPART(hour, JSH.StartTime) < 14 THEN CONVERT(varchar, DATEADD(day, -1, JSH.StartTime), 23) 
-            ELSE CONVERT(varchar, JSH.StartTime, 23) 
-        END = '{selected_date}'
-    ORDER BY StartTime ASC
-    """
-    df = pd.read_sql(query, conn)
-
-    query_30_days = """
-    SELECT 
-        CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
-        JSH.Status,
-        JSJ.Name as JobName,
-        CONVERT(datetime, JSH.StartTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [StartTime],
-        CONVERT(datetime, JSH.EndTime AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time') AS [EndTime],
-        JSH.Message
-    FROM JobStreamTaskHistory JSH
-    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
-    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE JSH.StartTime >= DATEADD(day, -30, GETDATE())
-    """
-    df_30_days = pd.read_sql(query_30_days, conn)
-
-    query_job_duration = f"""
-    SELECT 
-        CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
-        JSJ.Name as JobName,
-        DATEDIFF(SECOND, JSH.StartTime, JSH.EndTime) / 60.0 as DurationMinutes
-    FROM JobStreamTaskHistory JSH
-    LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
-    JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE CONVERT(varchar, JSH.StartTime, 23) = '{selected_date}'
-    """
-    df_job_duration = pd.read_sql(query_job_duration, conn)
-
-    query_unlock_online = f"""
-    SELECT JobName, CONVERT(datetime, EndTime) AS CompletionTime, Status 
-    FROM Job_StatsVW 
-    WHERE JobName = 'UnLock Online' 
-    AND ProcessingDate = '{selected_date}'
-    """
-    df_unlock_online = pd.read_sql(query_unlock_online, conn)
-
-    conn.close()
-
-    return df, df_30_days, df_job_duration, df_unlock_online
+    return df
 
 # Fetch initial data
-df, df_30_days, df_job_duration, df_unlock_online = fetch_data(default_date)
+df = fetch_data(default_date)
 
 # Initialize the Dash app with Bootstrap CSS and suppress callback exceptions
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], assets_folder='assets', suppress_callback_exceptions=True)
@@ -297,38 +227,21 @@ app.layout = dbc.Container([
                     )
                 ], width=3)
             ], className='border mt-3')
-        ]),
-        dbc.Tab(label='Chatbot', tab_id='chatbot', children=[
-            dbc.Row([
-                dbc.Col([
-                    html.H3("Chat with ASPIRE Bot"),
-                    dcc.Input(id='user-input', type='text', placeholder='Ask a question...', style={'width': '100%'}),
-                    html.Button('Submit', id='submit-btn', n_clicks=0, className='btn btn-primary mt-2'),
-                    html.Div(id='chatbot-response', style={'marginTop': 20})
-                ], width=12)
-            ], className='border mt-3')
         ])
     ]),
     dcc.ConfirmDialog(
         id='confirm-dialog',
         message='Email sent successfully!',
     ),
+    dbc.Row([
+        dbc.Col([
+            html.Div("Chatbot", className='text-center mb-2', style={'font-weight': 'bold'}),
+            dcc.Input(id='chat-input', type='text', placeholder='Ask a question...', style={'width': '80%'}),
+            html.Button('Submit', id='submit-chat', n_clicks=0),
+            html.Div(id='chat-output', style={'whiteSpace': 'pre-line'})
+        ], width=12, className='d-flex justify-content-center align-items-center fade-in')
+    ], className='border mt-3')
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
-
-# Callback to update the chatbot response
-@app.callback(
-    Output('chatbot-response', 'children'),
-    [Input('submit-btn', 'n_clicks')],
-    [State('user-input', 'value')]
-)
-def update_response(n_clicks, user_input):
-    if n_clicks > 0 and user_input:
-        response = generate_response(user_input)
-        return html.Div([
-            html.P(f"User: {user_input}"),
-            html.P(f"Bot: {response}")
-        ])
-    return ""
 
 # Callback to update the tables and dropdowns based on the selected date
 @app.callback(
@@ -375,7 +288,7 @@ def update_dashboard(selected_date, selected_status):
         empty_fig = px.bar()
         return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
 
-    df, df_30_days, df_job_duration, df_unlock_online = fetch_data(selected_date)
+    df = fetch_data(selected_date)
 
     if df.empty:
         message = html.Div(
@@ -391,8 +304,6 @@ def update_dashboard(selected_date, selected_status):
     df['EndDate'] = pd.to_datetime(df['EndTime']).dt.strftime('%Y-%m-%d')
     df['EndTime'] = pd.to_datetime(df['EndTime']).dt.strftime('%I:%M:%S %p')
 
-    df_unlock_online['CompletionTime'] = pd.to_datetime(df_unlock_online['CompletionTime']).dt.strftime('%I:%M:%S %p')
-
     status_options = [{'label': status, 'value': status} for status in df['Status'].unique()]
 
     filtered_df = df
@@ -405,7 +316,7 @@ def update_dashboard(selected_date, selected_status):
     job_table = dbc.Table(job_table_header + job_table_body, striped=True, bordered=True, hover=True)
 
     unlock_online_table_header = [html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'CompletionTime', 'Status']], className='bg-primary text-white'))]
-    unlock_online_table_body = [html.Tbody([html.Tr([html.Td(df_unlock_online.iloc[i][col]) for col in ['JobName', 'CompletionTime', 'Status']]) for i in range(len(df_unlock_online))])]
+    unlock_online_table_body = [html.Tbody([html.Tr([html.Td(df.iloc[i][col]) for col in ['JobName', 'CompletionTime', 'Status']]) for i in range(len(df))])]
 
     unlock_online_table = dbc.Table(unlock_online_table_header + unlock_online_table_body, striped=True, bordered=True, hover=True, className='table-dark')
 
@@ -451,6 +362,7 @@ def update_dashboard(selected_date, selected_status):
         bargap=0.4  # Adjust this value to reduce the height of the bars
     )
 
+    df_30_days = fetch_data(datetime.strftime(datetime.now() - timedelta(days=30), '%Y-%m-%d'))
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate']).dt.strftime('%Y-%m-%d')
     df_30_days['DurationMinutes'] = (df_30_days['EndTime'] - df_30_days['StartTime']).dt.total_seconds() / 60.0
 
@@ -633,6 +545,7 @@ def update_dashboard(selected_date, selected_status):
         )
 
     # Calculate average job duration per job
+    df_job_duration = fetch_data(selected_date)
     df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate']).dt.strftime('%Y-%m-%d')
     avg_duration = df_job_duration.groupby(['ProcessingDate', 'JobName'])['DurationMinutes'].mean().reset_index()
     fig_job_duration = px.line(avg_duration, x='ProcessingDate', y='DurationMinutes', color='JobName', title='Average Job Duration Over Time')
@@ -791,6 +704,17 @@ def handle_send_email(n_clicks, selected_date):
         return None, True  # Trigger the confirm dialog
 
     return None, False
+
+@app.callback(
+    Output('chat-output', 'children'),
+    [Input('submit-chat', 'n_clicks')],
+    [State('chat-input', 'value')]
+)
+def update_chat(n_clicks, value):
+    if n_clicks > 0 and value:
+        response = chatbot.get_response(value)
+        return f'User: {value}\n\nBot: {response}'
+    return ''
 
 def main():
     driver, dash_process, queue = run_dashboard()
