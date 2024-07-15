@@ -1,14 +1,22 @@
-/* Add any custom styles here */
-.animated-card {
-    animation: fadeInUp 0.5s ease;
+/* style.css */
+body {
+    font-family: Arial, sans-serif;
 }
 
 .fade-in {
-    animation: fadeIn 0.5s ease;
+    animation: fadeIn 1s;
 }
 
 .slide-in {
-    animation: slideIn 0.5s ease;
+    animation: slideIn 1s;
+}
+
+.animated-card {
+    transition: transform 0.3s;
+}
+
+.animated-card:hover {
+    transform: scale(1.05);
 }
 
 .pulse {
@@ -26,7 +34,48 @@
 }
 
 @keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+    0% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.5); }
+    70% { box-shadow: 0 0 0 10px rgba(0, 123, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); }
+}
+
+#chatbot-widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    background-color: #007bff;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#chatbot-modal .modal-dialog {
+    max-width: 400px;
+}
+
+#chat-output {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#chat-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+#chat-send-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
 }
