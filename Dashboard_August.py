@@ -17,6 +17,7 @@ from multiprocessing import Process, Queue
 import plotly.express as px
 import plotly.graph_objects as go
 import base64
+time.clock=time.time
 
 # Path to your logo image
 logo_path = 'C:\\Aspire_Dashboard\\Aspire.png'
@@ -174,6 +175,14 @@ app.layout = dbc.Container([
             ], className='border'),
             dbc.Row([
                 dbc.Col([
+                    html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3 pulse", style={'width': '200px'}),
+                    dbc.Tooltip("Send Dashboard via Email", target="send-email-button")
+                ], width=12, className='d-flex justify-content-center')
+            ], className='border mt-3')
+        ]),
+        dbc.Tab(label='Job Status & Failure Trend', tab_id='job-status-failure-trend', children=[
+            dbc.Row([
+                dbc.Col([
                     dcc.Loading(
                         id="loading-status-bar-graph",
                         type="default",
@@ -189,7 +198,9 @@ app.layout = dbc.Container([
                         children=dcc.Graph(id='failure-trend-graph', className='fade-in')
                     )
                 ], width=12)
-            ], className='border'),
+            ], className='border')
+        ]),
+        dbc.Tab(label='Time Difference Analysis', tab_id='time-difference-analysis', children=[
             dbc.Row([
                 dbc.Col([
                     dcc.Loading(
@@ -205,13 +216,7 @@ app.layout = dbc.Container([
                         children=html.Div(id='time-difference-table', style={'font-size': '14px'}, className='fade-in')
                     )
                 ], width=3)
-            ], className='border'),
-            dbc.Row([
-                dbc.Col([
-                    html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3 pulse", style={'width': '200px'}),
-                    dbc.Tooltip("Send Dashboard via Email", target="send-email-button")
-                ], width=12, className='d-flex justify-content-center')
-            ], className='border mt-3')
+            ], className='border')
         ]),
         dbc.Tab(label='Job Duration Analysis', tab_id='job-duration', children=[
             dbc.Row([
