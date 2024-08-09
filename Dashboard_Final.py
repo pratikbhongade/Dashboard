@@ -43,17 +43,6 @@ def get_last_business_day():
     
     return last_business_day
 
-# Function to get the last 5 business days
-def get_last_5_business_days(selected_date):
-    selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
-    business_days = []
-    current_day = selected_date_obj
-    while len(business_days) < 5:
-        if current_day.weekday() < 5:  # Monday to Friday are business days
-            business_days.append(current_day.strftime('%Y-%m-%d'))
-        current_day -= timedelta(days=1)
-    return business_days
-
 # Get the default date
 default_date = get_last_business_day().strftime('%Y-%m-%d')
 
@@ -106,7 +95,7 @@ def fetch_data(selected_date):
     """
     df_30_days = pd.read_sql(query_30_days, conn)
 
-    query_job_duration = f"""
+    query_job_duration = """
     SELECT 
         CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
         JSJ.Name as JobName,
@@ -114,7 +103,7 @@ def fetch_data(selected_date):
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE CONVERT(varchar, JSH.StartTime, 23) = '{selected_date}'
+    WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
     """
     df_job_duration = pd.read_sql(query_job_duration, conn)
 
@@ -136,10 +125,13 @@ df, df_30_days, df_job_duration, df_unlock_online = fetch_data(default_date)
 # Initialize the Dash app with Bootstrap CSS and suppress callback exceptions
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], assets_folder='assets', suppress_callback_exceptions=True)
 
+# Set custom HTML template
+app.index_string = open('templates/layout.html').read()
+
 # Layout of the dashboard
 app.layout = dbc.Container([
     dbc.Row([
-        dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px', id='logo'), width='auto'),
+        dbc.Col(html.Img(src='data:image/png;base64,{}'.format(logo_base64), height='60px', className='fade-in'), width='auto'),
         dbc.Col(html.H1("ASPIRE DASHBOARD", className='text-center mb-4 fade-in', style={'font-weight': 'bold', 'color': '#2A3F5F', 'border-bottom': '1px solid #2A3F5F'}), width=True, className='d-flex justify-content-center align-items-center'),
         dbc.Col([
             html.Div("Pick a date 📆", className='text-center mb-2 fade-in', style={'font-weight': 'bold'}),
@@ -151,9 +143,8 @@ app.layout = dbc.Container([
                 style={'font-weight': 'bold'}
             ),
             html.I(className="fa fa-calendar", id="calendar-icon", style={"margin-left": "10px"}),
-        ], width='auto', className='d-flex justify-content-end align-items-center fade-in'),
-        dbc.Tooltip("Select a date", target="calendar-icon"),
-        dbc.Tooltip("Company Logo", target="logo")
+            dbc.Tooltip("Select a date", target="calendar-icon")
+        ], width='auto', className='d-flex justify-content-end align-items-center fade-in')
     ], className='border mb-3 align-items-center justify-content-center slide-in'),
     dbc.Tabs([
         dbc.Tab(label='Main Dashboard', tab_id='main-dashboard', children=[
@@ -174,13 +165,13 @@ app.layout = dbc.Container([
             ], className='border mb-3'),
             dbc.Row([
                 dbc.Col([
-                    html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3 pulse", style={'width': '200px'}),
-                    dbc.Tooltip("Send Dashboard via Email", target="send-email-button")
-                ], width=12, className='d-flex justify-content-center')
-            ], className='border mt-3')
-        ]),
-        # New tab for Job Status Count
-        dbc.Tab(label='Job Status Count', tab_id='job-status-count', children=[
+                    dcc.Loading(
+                        id="loading-job-table",
+                        type="default",
+                        children=html.Div(id='job-table-container', className='slide-in')
+                    )
+                ], width=12)
+            ], className='border'),
             dbc.Row([
                 dbc.Col([
                     dcc.Loading(
@@ -189,10 +180,7 @@ app.layout = dbc.Container([
                         children=dcc.Graph(id='status-bar-graph', className='fade-in')
                     )
                 ], width=12)
-            ], className='border mt-3')
-        ]),
-        # New tab for Failure Trend Over the Last 30 Days
-        dbc.Tab(label='Failure Trend', tab_id='failure-trend', children=[
+            ], className='border'),
             dbc.Row([
                 dbc.Col([
                     dcc.Loading(
@@ -201,6 +189,28 @@ app.layout = dbc.Container([
                         children=dcc.Graph(id='failure-trend-graph', className='fade-in')
                     )
                 ], width=12)
+            ], className='border'),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-time-difference-graph",
+                        type="default",
+                        children=dcc.Graph(id='time-difference-graph', className='fade-in')
+                    )
+                ], width=9),
+                dbc.Col([
+                    dcc.Loading(
+                        id="loading-time-difference-table",
+                        type="default",
+                        children=html.Div(id='time-difference-table', style={'font-size': '14px'}, className='fade-in')
+                    )
+                ], width=3)
+            ], className='border'),
+            dbc.Row([
+                dbc.Col([
+                    html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3 pulse", style={'width': '200px'}),
+                    dbc.Tooltip("Send Dashboard via Email", target="send-email-button")
+                ], width=12, className='d-flex justify-content-center')
             ], className='border mt-3')
         ]),
         dbc.Tab(label='Job Duration Analysis', tab_id='job-duration', children=[
@@ -246,25 +256,6 @@ app.layout = dbc.Container([
                     )
                 ], width=12)
             ], className='border mt-3')
-        ]),
-        # Time Difference Analysis is now only in its own tab
-        dbc.Tab(label='Time Difference', tab_id='time-difference', children=[
-            dbc.Row([
-                dbc.Col([
-                    dcc.Loading(
-                        id="loading-time-difference-graph",
-                        type="default",
-                        children=dcc.Graph(id='time-difference-graph', className='fade-in')
-                    )
-                ], width=9),
-                dbc.Col([
-                    dcc.Loading(
-                        id="loading-time-difference-table",
-                        type="default",
-                        children=html.Div(id='time-difference-table', style={'font-size': '14px'}, className='fade-in')
-                    )
-                ], width=3)
-            ], className='border mt-3')
         ])
     ]),
     dcc.ConfirmDialog(
@@ -273,7 +264,7 @@ app.layout = dbc.Container([
     ),
 ], fluid=True, className='p-4 bg-light rounded-3 shadow')
 
-# Update callback to remove status filter input and adjust logic accordingly
+# Callback to update the tables and dropdowns based on the selected date
 @app.callback(
     [Output('unlock-online-table', 'children'),
      Output('job-table-container', 'children'),
@@ -333,10 +324,24 @@ def update_dashboard(selected_date):
 
     df_unlock_online['CompletionTime'] = pd.to_datetime(df_unlock_online['CompletionTime']).dt.strftime('%I:%M:%S %p')
 
-    # Job Status Count
+    job_status_options = [{'label': status, 'value': status} for status in df['Status'].unique()]
+
+    filtered_df = df
+
+    job_table_header = [html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']], className='bg-primary text-white'))]
+    job_table_body = [html.Tbody([html.Tr([html.Td(filtered_df.iloc[i][col]) for col in ['JobName', 'StartDate', 'StartTime', 'EndDate', 'EndTime', 'Status']]) for i in range(len(filtered_df))])]
+
+    job_table = dbc.Table(job_table_header + job_table_body, striped=True, bordered=True, hover=True)
+
+    unlock_online_table_header = [html.Thead(html.Tr([html.Th(col) for col in ['JobName', 'CompletionTime', 'Status']], className='bg-primary text-white'))]
+    unlock_online_table_body = [html.Tbody([html.Tr([html.Td(df_unlock_online.iloc[i][col]) for col in ['JobName', 'CompletionTime', 'Status']]) for i in range(len(df_unlock_online))])]
+
+    unlock_online_table = dbc.Table(unlock_online_table_header + unlock_online_table_body, striped=True, bordered=True, hover=True, className='table-dark')
+
     status_counts = df['Status'].value_counts().reset_index()
     status_counts.columns = ['Status', 'Count']
 
+    # Customize the bar graph for Job Status Counts
     fig_status = go.Figure(data=[
         go.Bar(
             x=status_counts['Count'],
@@ -344,7 +349,7 @@ def update_dashboard(selected_date):
             orientation='h',
             marker=dict(
                 color=status_counts['Status'].apply(lambda x: 'green' if x == 'Succeeded' else 'orange' if x == 'Succeeded with Exceptions' else 'red'),
-                line=dict(color='black', width=1)
+                line=dict(color='black', width=1)  # Keep the border
             )
         )
     ])
@@ -372,59 +377,57 @@ def update_dashboard(selected_date):
             gridcolor='lightgrey',
         ),
         font=dict(size=14),
-        bargap=0.4
+        bargap=0.4  # Adjust this value to reduce the height of the bars
     )
 
     df_30_days['ProcessingDate'] = pd.to_datetime(df_30_days['ProcessingDate']).dt.strftime('%Y-%m-%d')
     df_30_days['DurationMinutes'] = (df_30_days['EndTime'] - df_30_days['StartTime']).dt.total_seconds() / 60.0
-
-    df_failed = df_30_days[(df_30_days['Status'] == 'Failed') & (df_30_days['JobName'] != '20. Benchmark Update')]
+    df_failed = df_30_days[df_30_days['Status'] == 'Failed']
     failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
-    fig_trend.update_layout(
-        bargap=0.4,
-        template='plotly_white',
-        plot_bgcolor='rgba(229,236,246,1)',
-        title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
-        xaxis=dict(
-            showgrid=True,
-            showline=False,
-            linewidth=1,
-            linecolor='black',
-            mirror=True,
-            gridcolor='lightgrey',
-            tickformat='%Y-%m-%d'
-        ),
-        yaxis=dict(
-            showgrid=True,
-            showline=False,
-            linewidth=1,
-            linecolor='black',
-            mirror=True,
-            gridcolor='lightgrey',
-            rangemode='tozero'
-        ),
-        font=dict(size=14),
-        hovermode='x unified'
-    )
 
     triad_df = df_30_days[df_30_days['JobName'] == '18. TRIAD']
     benchmark_update_df = df_30_days[df_30_days['JobName'] == '20. Benchmark Update']
-
-    fig_time_diff = go.Figure()
 
     if not triad_df.empty and not benchmark_update_df.empty:
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
         merged_df['TimeDifference'] = (merged_df['EndTime_Benchmark'] - merged_df['EndTime_TRIAD']).dt.total_seconds() / 3600
 
-        merged_df = merged_df.sort_values('ProcessingDate', ascending=False)
+        merged_df = merged_df.sort_values('ProcessingDate', ascending=False)  # Ensure the dates are sorted in descending order
 
-        last_5_business_days = get_last_5_business_days(selected_date)
-        last_5_business_days_df = merged_df[merged_df['ProcessingDate'].isin(last_5_business_days)]
+        fig_time_diff = go.Figure()
+        fig_time_diff.add_trace(go.Scatter(
+            x=merged_df['ProcessingDate'],
+            y=merged_df['TimeDifference'],
+            mode='lines+markers',
+            name='Time Difference',
+            line=dict(color='blue'),
+            marker=dict(size=8)
+        ))
+        fig_time_diff.update_layout(
+            title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 30 Days',
+            xaxis_title='Processing Date',
+            yaxis_title='Time Difference (hours)',
+            hovermode='x unified',
+            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            xaxis=dict(
+                type='category',
+                tickformat='%Y-%m-%d'
+            ),
+            yaxis=dict(
+                rangemode='tozero'
+            )
+        )
+
+        # Create the table for the last 5 days, including the selected date
+        last_5_days_df = merged_df.drop_duplicates(subset=['ProcessingDate']).head(5)
+        if selected_date not in last_5_days_df['ProcessingDate'].values:
+            selected_date_row = merged_df[merged_df['ProcessingDate'] == selected_date].head(1)
+            last_5_days_df = pd.concat([selected_date_row, last_5_days_df]).drop_duplicates(subset=['ProcessingDate']).head(5)
 
         table_rows = []
-        for index, row in last_5_business_days_df.iterrows():
+        for index, row in last_5_days_df.iterrows():
             row_class = 'table-success' if row['ProcessingDate'] == selected_date else ''
             table_rows.append(html.Tr([
                 html.Td(row['ProcessingDate']),
@@ -435,35 +438,6 @@ def update_dashboard(selected_date):
             html.Thead(html.Tr([html.Th("Processing Date"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
             html.Tbody(table_rows)
         ], bordered=True, striped=True, hover=True)
-
-        fig_time_diff = px.line(merged_df, x='ProcessingDate', y='TimeDifference', title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 30 Days', markers=True)
-        fig_time_diff.update_layout(
-            xaxis_title='Processing Date',
-            yaxis_title='Time Difference (hours)',
-            hovermode='x unified',
-            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            template='plotly_white',
-            plot_bgcolor='rgba(229,236,246,1)',
-            title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
-            xaxis=dict(
-                showgrid=True,
-                showline=False,
-                linewidth=1,
-                linecolor='black',
-                mirror=True,
-                gridcolor='lightgrey'
-            ),
-            yaxis=dict(
-                showgrid=True,
-                showline=False,
-                linewidth=1,
-                linecolor='black',
-                mirror=True,
-                gridcolor='lightgrey',
-            ),
-            font=dict(size=14)
-        )
-
     else:
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
         time_difference_table = dbc.Table([
@@ -496,8 +470,7 @@ def update_dashboard(selected_date):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return (html.Div(), job_table, fig_status, fig_trend, fig_time_diff, time_difference_table, 
-            fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery)
+    return unlock_online_table, job_table, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
@@ -508,38 +481,45 @@ def run_dashboard():
     dash_process = Process(target=run_dash_app, args=(queue,))
     dash_process.start()
 
-    time.sleep(10)
+    # Give the server some time to start
+    time.sleep(10)  # Increased wait time to ensure the server starts
 
+    # Set up Selenium WebDriver for Chrome (ensure you have a compatible Chrome WebDriver in PATH)
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--window-size=1920,1080")  # Increase window size for full capture
 
     chrome_driver_path = "C:\\chromedriver_win64\\chromedriver.exe"
+
     webdriver_service = ChromeService(executable_path=chrome_driver_path)
-    
     try:
         driver = webdriver.Chrome(service=webdriver_service, options=chrome_options)
     except Exception as e:
         raise
 
+    # Open the Dash app in the browser
     driver.get("http://127.0.0.1:8050/")
-    time.sleep(5)
+    time.sleep(5)  # Give some time to ensure the page loads
 
     return driver, dash_process, queue
 
 def capture_full_page_screenshot(driver, file_path):
+    # Get the dimensions of the page
     total_width = driver.execute_script("return document.body.scrollWidth")
     total_height = driver.execute_script("return document.body.scrollHeight")
     viewport_height = driver.execute_script("return window.innerHeight")
 
+    # Set the browser window to the total page width
     driver.set_window_size(total_width, viewport_height)
-    time.sleep(2)
+    time.sleep(2)  # Allow time for the window resize to take effect
 
+    # List to hold individual screenshots
     screenshots = []
 
+    # Scroll and capture screenshots
     for i in range(0, total_height, viewport_height):
         if i + viewport_height > total_height:
             viewport_height = total_height - i
@@ -553,6 +533,7 @@ def capture_full_page_screenshot(driver, file_path):
         screenshot = driver.get_screenshot_as_png()
         screenshots.append(Image.open(BytesIO(screenshot)))
 
+    # Stitch screenshots together
     stitched_image = Image.new('RGB', (total_width, total_height))
     y_offset = 0
     for screenshot in screenshots:
@@ -562,6 +543,7 @@ def capture_full_page_screenshot(driver, file_path):
     stitched_image.save(file_path)
 
 def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
+    # Send an email with the screenshot embedded
     outlook = win32.Dispatch('outlook.application')
     mail = outlook.CreateItem(0)
     mail.To = 'Pratik_Bhongade@Keybank.com'
@@ -571,6 +553,7 @@ def send_email_with_screenshot(image_path, processing_date, benchmark_end_time):
         image_data = f.read()
         image_cid = 'dashboard_image'
     
+    # Extract the time part in the desired format
     benchmark_end_time_formatted = benchmark_end_time.strftime('%I:%M %p')
     
     mail.HTMLBody = f'''
@@ -604,19 +587,23 @@ def handle_send_email(n_clicks, selected_date):
     if n_clicks is not None:
         driver, dash_process, queue = run_dashboard()
 
+        # Capture the full page screenshot
         image_path = r"C:\Aspire_Dashboard\dashboard.png"
         os.makedirs(os.path.dirname(image_path), exist_ok=True)
         capture_full_page_screenshot(driver, image_path)
 
+        # Get the last business day and benchmark end time
         processing_date = selected_date
         benchmark_end_time = df[df['JobName'] == '20. Benchmark Update']['EndTime'].max()
 
+        # Send the email with the screenshot
         send_email_with_screenshot(image_path, processing_date, benchmark_end_time)
 
+        # Close the browser and stop the Dash app
         driver.quit()
         dash_process.terminate()
 
-        return None, True
+        return None, True  # Trigger the confirm dialog
 
     return None, False
 
