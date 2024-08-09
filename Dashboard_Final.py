@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options as Options
 from io import BytesIO
 import time
 import win32com.client as win32
@@ -42,17 +42,6 @@ def get_last_business_day():
             last_business_day -= timedelta(days=1)
     
     return last_business_day
-
-# Function to get the last 5 business days
-def get_last_5_business_days(selected_date):
-    selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
-    business_days = []
-    current_day = selected_date_obj
-    while len(business_days) < 5:
-        if current_day.weekday() < 5:  # Monday to Friday are business days
-            business_days.append(current_day.strftime('%Y-%m-%d'))
-        current_day -= timedelta(days=1)
-    return business_days
 
 # Get the default date
 default_date = get_last_business_day().strftime('%Y-%m-%d')
@@ -106,7 +95,7 @@ def fetch_data(selected_date):
     """
     df_30_days = pd.read_sql(query_30_days, conn)
 
-    query_job_duration = f"""
+    query_job_duration = """
     SELECT 
         CONVERT(varchar, JSH.StartTime, 23) as ProcessingDate, 
         JSJ.Name as JobName,
@@ -114,7 +103,7 @@ def fetch_data(selected_date):
     FROM JobStreamTaskHistory JSH
     LEFT JOIN JobStreamTask JST ON JSH.JobStreamTaskOid = JST.JobStreamTaskoid 
     JOIN JobStreamJob JSJ ON JSJ.JobStreamJoboid = JST.JobStreamJoboid
-    WHERE CONVERT(varchar, JSH.StartTime, 23) = '{selected_date}'
+    WHERE JSH.StartTime >= DATEADD(month, -6, GETDATE())
     """
     df_job_duration = pd.read_sql(query_job_duration, conn)
 
@@ -210,15 +199,6 @@ app.layout = dbc.Container([
             ], className='border'),
             dbc.Row([
                 dbc.Col([
-                    dcc.Loading(
-                        id="loading-time-difference-graph-main",
-                        type="default",
-                        children=dcc.Graph(id='time-difference-graph-main', className='fade-in')
-                    )
-                ], width=12)
-            ], className='border'),
-            dbc.Row([
-                dbc.Col([
                     html.Button("Send Email", id="send-email-button", className="btn btn-primary mt-3 pulse", style={'width': '200px'}),
                     dbc.Tooltip("Send Dashboard via Email", target="send-email-button")
                 ], width=12, className='d-flex justify-content-center')
@@ -305,8 +285,7 @@ app.layout = dbc.Container([
      Output('job-duration-graph', 'figure'),
      Output('performance-metrics-graph', 'figure'),
      Output('anomaly-detection-graph', 'figure'),
-     Output('time-to-recovery-graph', 'figure'),
-     Output('time-difference-graph-main', 'figure')],
+     Output('time-to-recovery-graph', 'figure')],
     [Input('date-picker-table', 'date'),
      Input('status-dropdown', 'value')]
 )
@@ -336,7 +315,7 @@ def update_dashboard(selected_date, selected_status):
             )
 
         empty_fig = px.bar()
-        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
 
     df, df_30_days, df_job_duration, df_unlock_online = fetch_data(selected_date)
 
@@ -347,7 +326,7 @@ def update_dashboard(selected_date, selected_status):
             ]
         )
         empty_fig = px.bar()
-        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig, empty_fig
+        return message, message, [], empty_fig, empty_fig, empty_fig, html.Div(), empty_fig, empty_fig, empty_fig, empty_fig
 
     df['StartDate'] = pd.to_datetime(df['StartTime']).dt.strftime('%Y-%m-%d')
     df['StartTime'] = pd.to_datetime(df['StartTime']).dt.strftime('%I:%M:%S %p')
@@ -422,37 +401,10 @@ def update_dashboard(selected_date, selected_status):
     failure_trend = df_failed.groupby(['ProcessingDate', 'JobName', 'StartTime', 'Message']).size().reset_index(name='Count')
     fig_trend = px.bar(failure_trend, x='ProcessingDate', y='Count', color='JobName', title='Failure Trend Over the Last 30 Days', 
                        hover_data={'StartTime': True, 'JobName': True, 'Message': True})
-    fig_trend.update_layout(
-        bargap=0.4,
-        template='plotly_white',
-        plot_bgcolor='rgba(229,236,246,1)',
-        title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
-        xaxis=dict(
-            showgrid=True,
-            showline=False,
-            linewidth=1,
-            linecolor='black',
-            mirror=True,
-            gridcolor='lightgrey',
-            tickformat='%Y-%m-%d'
-        ),
-        yaxis=dict(
-            showgrid=True,
-            showline=False,
-            linewidth=1,
-            linecolor='black',
-            mirror=True,
-            gridcolor='lightgrey',
-            rangemode='tozero'
-        ),
-        font=dict(size=14),
-        hovermode='x unified'
-    )
+    fig_trend.update_layout(bargap=0.4)
 
     triad_df = df_30_days[df_30_days['JobName'] == '18. TRIAD']
     benchmark_update_df = df_30_days[df_30_days['JobName'] == '20. Benchmark Update']
-
-    fig_time_diff = go.Figure()
 
     if not triad_df.empty and not benchmark_update_df.empty:
         merged_df = pd.merge(triad_df, benchmark_update_df, on='ProcessingDate', suffixes=('_TRIAD', '_Benchmark'))
@@ -460,12 +412,38 @@ def update_dashboard(selected_date, selected_status):
 
         merged_df = merged_df.sort_values('ProcessingDate', ascending=False)  # Ensure the dates are sorted in descending order
 
-        # Create the table for the last 5 business days, including the selected date
-        last_5_business_days = get_last_5_business_days(selected_date)
-        last_5_business_days_df = merged_df[merged_df['ProcessingDate'].isin(last_5_business_days)]
+        fig_time_diff = go.Figure()
+        fig_time_diff.add_trace(go.Scatter(
+            x=merged_df['ProcessingDate'],
+            y=merged_df['TimeDifference'],
+            mode='lines+markers',
+            name='Time Difference',
+            line=dict(color='blue'),
+            marker=dict(size=8)
+        ))
+        fig_time_diff.update_layout(
+            title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 30 Days',
+            xaxis_title='Processing Date',
+            yaxis_title='Time Difference (hours)',
+            hovermode='x unified',
+            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            xaxis=dict(
+                type='category',
+                tickformat='%Y-%m-%d'
+            ),
+            yaxis=dict(
+                rangemode='tozero'
+            )
+        )
+
+        # Create the table for the last 5 days, including the selected date
+        last_5_days_df = merged_df.drop_duplicates(subset=['ProcessingDate']).head(5)
+        if selected_date not in last_5_days_df['ProcessingDate'].values:
+            selected_date_row = merged_df[merged_df['ProcessingDate'] == selected_date].head(1)
+            last_5_days_df = pd.concat([selected_date_row, last_5_days_df]).drop_duplicates(subset=['ProcessingDate']).head(5)
 
         table_rows = []
-        for index, row in last_5_business_days_df.iterrows():
+        for index, row in last_5_days_df.iterrows():
             row_class = 'table-success' if row['ProcessingDate'] == selected_date else ''
             table_rows.append(html.Tr([
                 html.Td(row['ProcessingDate']),
@@ -476,80 +454,6 @@ def update_dashboard(selected_date, selected_status):
             html.Thead(html.Tr([html.Th("Processing Date"), html.Th("Time Difference (hours)")]), className='bg-primary text-white'),
             html.Tbody(table_rows)
         ], bordered=True, striped=True, hover=True)
-
-        # Time difference for main dashboard bar graph for last 5 business days
-        main_time_diff_data = []
-        for date in last_5_business_days:
-            triad_time = triad_df[triad_df['ProcessingDate'] == date]['EndTime'].max()
-            benchmark_start_time = benchmark_update_df[benchmark_update_df['ProcessingDate'] == date]['StartTime'].min()
-            sourcing_time_difference = (benchmark_start_time - triad_time).total_seconds() / 3600
-
-            all_jobs_df = df_30_days[(df_30_days['ProcessingDate'] == date) & (df_30_days['JobName'].str.match(r'^[1-9]\.'))]
-            if not all_jobs_df.empty:
-                all_jobs_time = (all_jobs_df['EndTime'].max() - all_jobs_df['StartTime'].min()).total_seconds() / 3600
-                main_time_diff_data.append({'ProcessingDate': date, 'Type': 'All Jobs', 'Time': all_jobs_time})
-                main_time_diff_data.append({'ProcessingDate': date, 'Type': 'Sourcing Job', 'Time': sourcing_time_difference})
-
-        main_time_diff_df = pd.DataFrame(main_time_diff_data)
-        main_time_diff_df = main_time_diff_df[main_time_diff_df['Time'] > 0]  # Filter out rows with no time difference
-
-        fig_time_diff_main = px.bar(main_time_diff_df, x='ProcessingDate', y='Time', color='Type', title='Time Difference Analysis for Last 5 Business Days', barmode='group')
-        fig_time_diff_main.update_layout(
-            xaxis_title='Processing Date',
-            yaxis_title='Time (hours)',
-            hovermode='x unified',
-            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            template='plotly_white',
-            plot_bgcolor='rgba(229,236,246,1)',
-            title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
-            xaxis=dict(
-                showgrid=True,
-                showline=False,
-                linewidth=1,
-                linecolor='black',
-                mirror=True,
-                gridcolor='lightgrey'
-            ),
-            yaxis=dict(
-                showgrid=True,
-                showline=False,
-                linewidth=1,
-                linecolor='black',
-                mirror=True,
-                gridcolor='lightgrey',
-            ),
-            font=dict(size=14)
-        )
-
-        # Line graph for the Time Difference tab
-        fig_time_diff = px.line(merged_df, x='ProcessingDate', y='TimeDifference', title='Time Difference between TRIAD and Benchmark Update Jobs Over the Last 30 Days', markers=True)
-        fig_time_diff.update_layout(
-            xaxis_title='Processing Date',
-            yaxis_title='Time Difference (hours)',
-            hovermode='x unified',
-            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            template='plotly_white',
-            plot_bgcolor='rgba(229,236,246,1)',
-            title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
-            xaxis=dict(
-                showgrid=True,
-                showline=False,
-                linewidth=1,
-                linecolor='black',
-                mirror=True,
-                gridcolor='lightgrey'
-            ),
-            yaxis=dict(
-                showgrid=True,
-                showline=False,
-                linewidth=1,
-                linecolor='black',
-                mirror=True,
-                gridcolor='lightgrey',
-            ),
-            font=dict(size=14)
-        )
-
     else:
         fig_time_diff = px.line(title='No data available for TRIAD or Benchmark Update jobs.')
         time_difference_table = dbc.Table([
@@ -558,42 +462,6 @@ def update_dashboard(selected_date, selected_status):
                 html.Tr([html.Td("No Data"), html.Td("No Data")])
             ])
         ], bordered=True, striped=True, hover=True)
-
-        fig_time_diff_main = go.Figure()
-        fig_time_diff_main.add_trace(go.Bar(
-            x=['All Jobs', 'Sourcing Job', 'Benchmark Update'],
-            y=[0, 0, 0],
-            marker=dict(color=['#1f77b4', '#ff7f0e', '#2ca02c']),
-            text=['No Data', 'No Data', 'No Data'],
-            textposition='auto'
-        ))
-        fig_time_diff_main.update_layout(
-            title='Time Difference Analysis',
-            xaxis_title='Job Type',
-            yaxis_title='Time (hours)',
-            hovermode='x unified',
-            legend=dict(title="Metrics", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            template='plotly_white',
-            plot_bgcolor='rgba(229,236,246,1)',
-            title_font=dict(size=21, family='Arial, bold', color='rgba(42, 63, 95, 1)'),
-            xaxis=dict(
-                showgrid=True,
-                showline=False,
-                linewidth=1,
-                linecolor='black',
-                mirror=True,
-                gridcolor='lightgrey'
-            ),
-            yaxis=dict(
-                showgrid=True,
-                showline=False,
-                linewidth=1,
-                linecolor='black',
-                mirror=True,
-                gridcolor='lightgrey',
-            ),
-            font=dict(size=14)
-        )
 
     # Calculate average job duration per job
     df_job_duration['ProcessingDate'] = pd.to_datetime(df_job_duration['ProcessingDate']).dt.strftime('%Y-%m-%d')
@@ -618,7 +486,7 @@ def update_dashboard(selected_date, selected_status):
     recovery_data = df_30_days[df_30_days['Status'] == 'Failed'].groupby('ProcessingDate')['RecoveryTime'].mean().reset_index()
     fig_recovery = px.bar(recovery_data, x='ProcessingDate', y='RecoveryTime', title='Time to Recovery from Job Failures')
 
-    return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery, fig_time_diff_main
+    return unlock_online_table, job_table, status_options, fig_status, fig_trend, fig_time_diff, time_difference_table, fig_job_duration, fig_performance_metrics, fig_anomaly_detection, fig_recovery
 
 def run_dash_app(queue):
     app.run_server(debug=True, port=8050, use_reloader=False)
